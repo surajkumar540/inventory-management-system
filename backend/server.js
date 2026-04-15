@@ -1,6 +1,7 @@
 import authRoutes from "./src/routes/authRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
 import orderRoutes from "./src/routes/orderRoutes.js";
+import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 
 import "dotenv/config";
 import express from "express";
@@ -28,6 +29,9 @@ app.use("/uploads", express.static("uploads"));
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
 app.use("/api/orders", orderRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+
+
 // =======================
 // TEST ROUTE
 // =======================

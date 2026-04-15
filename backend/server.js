@@ -1,5 +1,7 @@
 import authRoutes from "./src/routes/authRoutes.js";
 import productRoutes from "./src/routes/productRoutes.js";
+import orderRoutes from "./src/routes/orderRoutes.js";
+
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -16,6 +18,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 
+
 // 🔥 ADD THIS (IMPORTANT)
 app.use("/uploads", express.static("uploads"));
 
@@ -24,7 +27,7 @@ app.use("/uploads", express.static("uploads"));
 // =======================
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
-
+app.use("/api/orders", orderRoutes);
 // =======================
 // TEST ROUTE
 // =======================

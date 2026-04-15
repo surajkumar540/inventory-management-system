@@ -6,7 +6,6 @@ import cors from "cors";
 import morgan from "morgan";
 import helmet from "helmet";
 
-
 const app = express();
 
 // =======================
@@ -17,11 +16,15 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 
+// 🔥 ADD THIS (IMPORTANT)
+app.use("/uploads", express.static("uploads"));
+
 // =======================
 // ROUTES
 // =======================
 app.use("/api/auth", authRoutes);
 app.use("/api/products", productRoutes);
+
 // =======================
 // TEST ROUTE
 // =======================

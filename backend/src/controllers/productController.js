@@ -7,8 +7,18 @@ export const createProduct = async (req, res) => {
   try {
     const { name, sku, price, quantity } = req.body;
 
+    const image = req.file
+      ? `${req.protocol}://${req.get("host")}/${req.file.path}`
+      : null;
+
     const product = await prisma.product.create({
-      data: { name, sku, price, quantity }
+      data: {
+        name,
+        sku,
+        price: Number(price),
+        quantity: Number(quantity),
+        image
+      }
     });
 
     res.json(product);

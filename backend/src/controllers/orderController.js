@@ -1,9 +1,7 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../prisma/client.js";
 
 // =======================
-// CREATE ORDER
+// CREATE ORDER (PRO VERSION)
 // =======================
 export const createOrder = async (req, res) => {
   try {
@@ -11,65 +9,84 @@ export const createOrder = async (req, res) => {
     const { items } = req.body;
 
     if (!items || items.length === 0) {
-      return res.status(400).json({ message: "No items in order" });
+      return res.status(400).json({
+        success: false,
+        message: "No items in order",
+      });
     }
 
-    // 1️⃣ Check stock first
-    for (let item of items) {
-      const product = await prisma.product.findUnique({
-        where: { id: item.productId }
+    // =========================
+    // TRANSACTION
+    // =========================
+    const order = await prisma.$transaction(async (tx) => {
+      const newOrder = await tx.order.create({
+        data: { userId },
       });
 
-      if (!product) {
-        return res.status(404).json({ message: "Product not found" });
-      }
+      for (const item of items) {
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+        });
 
-      if (product.quantity < item.quantity) {
-        return res.status(400).json({
-          message: `Not enough stock for ${product.name}`
+        if (!product) {
+          throw new Error("Product not found");
+        }
+
+        if (product.quantity < item.quantity) {
+          throw new Error(`Not enough stock for ${product.name}`);
+        }
+
+        // Create order item
+        await tx.orderItem.create({
+          data: {
+            orderId: newOrder.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: product.price,
+          },
+        });
+
+        // Update stock
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            quantity: product.quantity - item.quantity,
+          },
+        });
+
+        // Stock log
+        await tx.stockLog.create({
+          data: {
+            productId: item.productId,
+            change: -item.quantity,
+          },
         });
       }
-    }
 
-    // 2️⃣ Create Order + Items
-    const order = await prisma.order.create({
-      data: {
-        userId,
-        items: {
-          create: items.map((item) => ({
-            productId: item.productId,
-            quantity: item.quantity
-          }))
-        }
-      },
-      include: {
-        items: true
-      }
+      return newOrder;
     });
 
-    // 3️⃣ Reduce stock
-    for (let item of items) {
-      await prisma.product.update({
-        where: { id: item.productId },
-        data: {
-          quantity: {
-            decrement: item.quantity
-          }
-        }
-      });
+    // =========================
+    // 🔥 CLEAR REDIS CACHE
+    // =========================
+    await redisClient.del("dashboard");
 
-      // optional: stock log
-      await prisma.stockLog.create({
-        data: {
-          productId: item.productId,
-          change: -item.quantity
-        }
-      });
-    }
+    // =========================
+    // RESPONSE
+    // =========================
+    res.status(201).json({
+      success: true,
+      message: "Order created successfully",
+      data: order,
+    });
 
-    res.status(201).json(order);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Order Error:", err.message);
+
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -82,16 +99,27 @@ export const getAllOrders = async (req, res) => {
       include: {
         items: {
           include: {
-            product: true
-          }
+            product: true,
+          },
         },
-        user: true
-      }
+        user: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
-    res.json(orders);
+    res.status(200).json({
+      success: true,
+      data: orders,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("Get Orders Error:", err.message);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 
@@ -102,19 +130,30 @@ export const getMyOrders = async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
       where: {
-        userId: req.user.id
+        userId: req.user.id,
       },
       include: {
         items: {
           include: {
-            product: true
-          }
-        }
-      }
+            product: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
-    res.json(orders);
+    res.status(200).json({
+      success: true,
+      data: orders,
+    });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("My Orders Error:", err.message);
+
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 };

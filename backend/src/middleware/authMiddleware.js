@@ -8,7 +8,6 @@ export const authMiddleware = (req, res, next) => {
       return res.status(401).json({ message: "No token provided" });
     }
 
-    // Expecting: "Bearer TOKEN"
     const token = authHeader.split(" ")[1];
 
     if (!token) {

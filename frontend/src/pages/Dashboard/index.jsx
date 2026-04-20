@@ -6,7 +6,7 @@ import API from "../../api/axios";
 import StatCard from "../../components/ui/StatCard";
 import AlertBanner from "../../components/charts/AlertBanner";
 import RevenueChart from "../../components/charts/RevenueChart";
-import SalesChart from "../../components/charts/SalesChart";
+// import SalesChart from "../../components/charts/SalesChart";
 import TopProductsChart from "../../components/charts/TopProductsChart"
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
@@ -108,7 +108,7 @@ const Dashboard = () => {
           {
             title: "Sales Volume",
             subtitle: "Orders per day",
-            child: <SalesChart data={sales} />,
+            // child: <SalesChart data={sales} />,
           },
         ].map(({ title, subtitle, child }) => (
           <motion.div

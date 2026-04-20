@@ -3,6 +3,7 @@ import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Auth/Login";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
+import Products from "./pages/Products";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
           }
         >
           <Route index element={<Dashboard />} />
+          <Route path="products" element={<Products />} />
         </Route>
       </Routes>
     </BrowserRouter>

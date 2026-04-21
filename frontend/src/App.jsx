@@ -5,6 +5,7 @@ import ProtectedRoute from "./components/auth/ProtectedRoute";
 import DashboardLayout from "./layout/DashboardLayout";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
+import Signup from "./pages/Auth/Signup";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
       <Routes>
         {/* Public */}
         <Route path="/login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
 
         {/* Protected */}
         <Route
@@ -22,7 +24,14 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Dashboard />} />
+          <Route
+            index
+            element={
+              <ProtectedRoute role="admin">
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
           <Route path="products" element={<Products />} />
           <Route path="orders" element={<Orders />} />
         </Route>

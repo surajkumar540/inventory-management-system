@@ -1,16 +1,31 @@
-import { LayoutDashboard, Package, ShoppingCart, BarChart3, Settings, Zap } from "lucide-react";
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  BarChart3,
+  Settings,
+  Zap,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-
-const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/" },
-  { label: "Products",  icon: Package,         to: "/products" },
-  { label: "Orders",    icon: ShoppingCart,    to: "/orders", badge: "2" },
-  { label: "Analytics", icon: BarChart3,       to: "/analytics" },
-  { label: "Settings",  icon: Settings,        to: "/settings" },
-];
+import useAuthStore from "../stores/useAuthStore"; // adjust path if needed
 
 const Sidebar = () => {
   const location = useLocation();
+  const { user } = useAuthStore();
+
+  // 🔥 ROLE-BASED NAV CONFIG
+  const navItems = [
+    { label: "Dashboard", icon: LayoutDashboard, to: "/", role: "admin" },
+    { label: "Products", icon: Package, to: "/products" },
+    { label: "Orders", icon: ShoppingCart, to: "/orders" },
+    { label: "Analytics", icon: BarChart3, to: "/analytics", role: "admin" },
+    { label: "Settings", icon: Settings, to: "/settings" },
+  ];
+
+  // 🔥 FILTER BASED ON ROLE
+  const filteredNavItems = navItems.filter(
+    (item) => !item.role || item.role === user?.role
+  );
 
   return (
     <aside className="w-sidebar h-screen bg-surface border-r border-border flex flex-col px-3 py-4 fixed left-0 top-0 bottom-0 z-10">
@@ -30,44 +45,46 @@ const Sidebar = () => {
         Main
       </p>
 
-      {/* Nav items */}
+      {/* Navigation */}
       <nav className="flex flex-col gap-0.5">
-        {navItems.map((item) => {
+        {filteredNavItems.map((item) => {
           const active = location.pathname === item.to;
+
           return (
             <Link
               key={item.to}
               to={item.to}
               className={`flex items-center gap-2 px-2.5 py-2 rounded-md text-base transition-all
-                ${active
-                  ? "bg-primary-50 text-primary-600 font-medium"
-                  : "text-ink-muted hover:bg-surface-muted hover:text-ink font-normal"
+                ${
+                  active
+                    ? "bg-primary-50 text-primary-600 font-medium"
+                    : "text-ink-muted hover:bg-surface-muted hover:text-ink"
                 }`}
             >
               <item.icon size={15} />
               {item.label}
-              {item.badge && (
-                <span className="ml-auto text-2xs font-medium bg-danger-50 text-danger-600 px-1.5 py-0.5 rounded-full border border-danger-100">
-                  {item.badge}
-                </span>
-              )}
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer */}
+      {/* Footer (User Info) */}
       <div className="mt-auto pt-3 border-t border-border">
         <div className="flex items-center gap-2 p-2 rounded-md hover:bg-surface-muted cursor-pointer">
           <div className="w-7 h-7 rounded-full bg-primary-50 flex items-center justify-center text-xs font-semibold text-primary-500">
-            AD
+            {user?.email?.charAt(0)?.toUpperCase() || "U"}
           </div>
           <div>
-            <p className="text-sm font-semibold text-ink">Admin</p>
-            <p className="text-xs text-ink-faint">Super Admin</p>
+            <p className="text-sm font-semibold text-ink">
+              {user?.email || "User"}
+            </p>
+            <p className="text-xs text-ink-faint capitalize">
+              {user?.role || "user"}
+            </p>
           </div>
         </div>
       </div>
+
     </aside>
   );
 };

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { loginUser } from "../../api/auth";
-import useAuthStore from "../../stores/useAuthStore";
-const Login = () => {
+import { signupUser } from "../../api/auth";
+
+const Signup = () => {
   const navigate = useNavigate();
-  const { login } = useAuthStore();
 
   const [form, setForm] = useState({
     email: "",
@@ -15,27 +14,21 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      const res = await loginUser(form);
+      await signupUser(form);
+      alert("Signup successful");
 
-      login(res.data); // save token
-      if (res.data.user.role === "admin") {
-        navigate("/");
-      } else {
-        navigate("/orders");
-      }
+      navigate("/login"); // redirect to login
     } catch (err) {
       console.error(err);
-      alert("Invalid credentials");
+      alert("Signup failed");
     }
   };
 
   return (
     <div className="h-screen flex items-center justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="p-6 border rounded w-80 space-y-4"
-      >
-        <h2 className="text-xl font-semibold">Login</h2>
+      <form onSubmit={handleSubmit} className="p-6 border rounded w-80 space-y-4">
+
+        <h2 className="text-xl font-semibold">Signup</h2>
 
         <input
           type="email"
@@ -51,10 +44,12 @@ const Login = () => {
           onChange={(e) => setForm({ ...form, password: e.target.value })}
         />
 
-        <button className="w-full bg-black text-white p-2">Login</button>
+        <button className="w-full bg-black text-white p-2">
+          Signup
+        </button>
       </form>
     </div>
   );
 };
 
-export default Login;
+export default Signup;

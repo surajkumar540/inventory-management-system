@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getOrders, getMyOrders } from "../../api/order";
+import { getOrders, getMyOrders, deleteOrder } from "../../api/order";
 import useAuthStore from "../../stores/useAuthStore";
 
 import OrderForm from "../../components/orders/OrderForm";
@@ -20,13 +20,10 @@ const Orders = () => {
 
       let res;
 
-      // 👑 Admin → all orders
       if (user?.role === "admin") {
-        res = await getOrders();
-      }
-      // 👤 User → only my orders
-      else {
-        res = await getMyOrders();
+        res = await getOrders(); // admin
+      } else {
+        res = await getMyOrders(); // user
       }
 
       setOrders(res.data.data);
@@ -38,17 +35,28 @@ const Orders = () => {
   };
 
   // =========================
-  // INITIAL LOAD
+  // DELETE / CANCEL ORDER
   // =========================
+  const handleDelete = async (id) => {
+    const confirmDelete = window.confirm("Cancel this order?");
+
+    if (!confirmDelete) return;
+
+    try {
+      await deleteOrder(id);
+      fetchOrders();
+    } catch (err) {
+      console.error("Delete Order Error:", err);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
   }, [user]);
 
-  // =========================
-  // UI
-  // =========================
   return (
     <div className="space-y-6">
+
       {/* Create Order */}
       <OrderForm onSuccess={fetchOrders} />
 
@@ -58,11 +66,11 @@ const Orders = () => {
           <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
         </div>
       ) : orders.length === 0 ? (
-        // Empty State
-        <p className="text-center text-gray-400 py-10">No orders found</p>
+        <p className="text-center text-gray-400 py-10">
+          No orders found
+        </p>
       ) : (
-        // Orders Table
-        <OrderTable orders={orders} />
+        <OrderTable orders={orders} onDelete={handleDelete} />
       )}
     </div>
   );

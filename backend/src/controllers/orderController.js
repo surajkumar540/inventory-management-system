@@ -1,5 +1,4 @@
 import prisma from "../prisma/client.js";
-
 // =======================
 // CREATE ORDER (PRO VERSION)
 // =======================
@@ -15,28 +14,26 @@ export const createOrder = async (req, res) => {
       });
     }
 
-    // =========================
-    // TRANSACTION
-    // =========================
     const order = await prisma.$transaction(async (tx) => {
       const newOrder = await tx.order.create({
         data: { userId },
       });
 
       for (const item of items) {
+        if (item.quantity <= 0) {
+          throw new Error("Invalid quantity");
+        }
+
         const product = await tx.product.findUnique({
           where: { id: item.productId },
         });
 
-        if (!product) {
-          throw new Error("Product not found");
-        }
+        if (!product) throw new Error("Product not found");
 
         if (product.quantity < item.quantity) {
           throw new Error(`Not enough stock for ${product.name}`);
         }
 
-        // Create order item
         await tx.orderItem.create({
           data: {
             orderId: newOrder.id,
@@ -46,7 +43,6 @@ export const createOrder = async (req, res) => {
           },
         });
 
-        // Update stock
         await tx.product.update({
           where: { id: item.productId },
           data: {
@@ -54,7 +50,6 @@ export const createOrder = async (req, res) => {
           },
         });
 
-        // Stock log
         await tx.stockLog.create({
           data: {
             productId: item.productId,
@@ -66,14 +61,6 @@ export const createOrder = async (req, res) => {
       return newOrder;
     });
 
-    // =========================
-    // 🔥 CLEAR REDIS CACHE
-    // =========================
-    await redisClient.del("dashboard");
-
-    // =========================
-    // RESPONSE
-    // =========================
     res.status(201).json({
       success: true,
       message: "Order created successfully",
@@ -151,6 +138,68 @@ export const getMyOrders = async (req, res) => {
   } catch (err) {
     console.error("My Orders Error:", err.message);
 
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+export const cancelOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const order = await prisma.order.findUnique({
+      where: { id: Number(id) },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: "Order not found",
+      });
+    }
+
+    // Restore stock
+    await prisma.$transaction(async (tx) => {
+      for (const item of order.items) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            quantity: {
+              increment: item.quantity,
+            },
+          },
+        });
+
+        await tx.stockLog.create({
+          data: {
+            productId: item.productId,
+            change: item.quantity, // restore
+          },
+        });
+      }
+
+      // Delete order items
+      await tx.orderItem.deleteMany({
+        where: { orderId: order.id },
+      });
+
+      // Delete order
+      await tx.order.delete({
+        where: { id: order.id },
+      });
+    });
+
+    res.json({
+      success: true,
+      message: "Order cancelled & stock restored",
+    });
+
+  } catch (err) {
     res.status(500).json({
       success: false,
       message: err.message,

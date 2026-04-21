@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 // CREATE PRODUCT
 export const createProduct = async (req, res) => {
   try {
-    const { name, sku, price, quantity } = req.body;
+    const { name, price, quantity, sku } = req.body;
 
     const image = req.file
       ? `${req.protocol}://${req.get("host")}/${req.file.path}`
@@ -14,11 +14,11 @@ export const createProduct = async (req, res) => {
     const product = await prisma.product.create({
       data: {
         name,
-        sku,
+        sku: sku || `SKU-${Date.now()}`, // ← fallback if not sent
         price: Number(price),
-        quantity: Number(quantity),
-        image
-      }
+        quantity: Number(quantity), // ← was getting NaN from "stock"
+        image,
+      },
     });
 
     res.json(product);
@@ -44,7 +44,7 @@ export const updateProduct = async (req, res) => {
 
     const product = await prisma.product.update({
       where: { id: Number(id) },
-      data: req.body
+      data: req.body,
     });
 
     res.json(product);
@@ -59,7 +59,7 @@ export const deleteProduct = async (req, res) => {
     const { id } = req.params;
 
     await prisma.product.delete({
-      where: { id: Number(id) }
+      where: { id: Number(id) },
     });
 
     res.json({ message: "Product deleted" });

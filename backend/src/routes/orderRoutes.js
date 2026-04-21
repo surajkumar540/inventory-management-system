@@ -1,5 +1,6 @@
 import express from "express";
 import {
+  cancelOrder,
   createOrder,
   getAllOrders,
   getMyOrders
@@ -13,7 +14,7 @@ const router = express.Router();
 // 👤 user order
 router.post("/", authMiddleware, createOrder);
 router.get("/my", authMiddleware, getMyOrders);
-
+router.delete("/:id", authMiddleware, cancelOrder);
 // 👑 admin orders
 router.get("/", authMiddleware, isAdmin, getAllOrders);
 

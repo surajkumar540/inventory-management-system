@@ -1,21 +1,33 @@
 import { Bar } from "react-chartjs-2";
-import { Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
+import {
+  Chart as ChartJS,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+} from "chart.js";
 import { chartDefaults, colors } from "../../styles/tokens";
-prof
 
-ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip, Legend);
+ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
 const SalesChart = ({ data = [] }) => {
   const chartData = {
     labels: data.map((d) => d.date),
-    datasets: [{
-      label: "Sales",
-      data: data.map((d) => d.totalSales),
-      backgroundColor: colors.primaryBg,
-      borderColor: colors.primary,
-      borderWidth: 1.5,
-      borderRadius: 6,
-    }],
+    datasets: [
+      {
+        label: "Orders",
+        data: data.map((d) => d.totalSales),
+        backgroundColor: (ctx) => {
+          const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, 180);
+          gradient.addColorStop(0, "rgba(99,102,241,0.7)");
+          gradient.addColorStop(1, "rgba(139,92,246,0.3)");
+          return gradient;
+        },
+        borderColor: "transparent",
+        borderRadius: 8,
+        borderSkipped: false,
+      },
+    ],
   };
 
   const options = {
@@ -32,7 +44,11 @@ const SalesChart = ({ data = [] }) => {
     },
   };
 
-  return <div className="h-44"><Bar data={chartData} options={options} /></div>;
+  return (
+    <div className="h-44">
+      <Bar data={chartData} options={options} />
+    </div>
+  );
 };
 
 export default SalesChart;

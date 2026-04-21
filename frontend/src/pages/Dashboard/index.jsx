@@ -1,13 +1,30 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { DollarSign, ShoppingCart, Package, AlertTriangle } from "lucide-react";
+import {
+  DollarSign,
+  ShoppingCart,
+  Package,
+  AlertTriangle,
+  ArrowUpRight,
+} from "lucide-react";
 
 import API from "../../api/axios";
 import StatCard from "../../components/ui/StatCard";
 import AlertBanner from "../../components/charts/AlertBanner";
 import RevenueChart from "../../components/charts/RevenueChart";
-// import SalesChart from "../../components/charts/SalesChart";
-import TopProductsChart from "../../components/charts/TopProductsChart"
+import SalesChart from "../../components/charts/SalesChart";
+import TopProductsChart from "../../components/charts/TopProductsChart";
+
+const containerVariants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+};
+
 const Dashboard = () => {
   const [stats, setStats] = useState(null);
   const [sales, setSales] = useState([]);
@@ -36,26 +53,39 @@ const Dashboard = () => {
 
   if (loading)
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+        <p className="text-[12px] text-slate-400">Fetching dashboard data…</p>
       </div>
     );
 
   return (
-    <div className="space-y-5">
-
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      className="space-y-6"
+    >
       {/* Header */}
-      <div>
-        <h1 className="text-[20px] font-semibold text-gray-800">
-          Inventory Overview
-        </h1>
-        <p className="text-[13px] text-gray-400 mt-1">
-          Real-time metrics across products, orders, and revenue
-        </p>
-      </div>
+      <motion.div variants={fadeUp} className="flex items-end justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold text-slate-800 tracking-tight">
+            Inventory Overview
+          </h1>
+          <p className="text-[13px] text-slate-400 mt-0.5">
+            Real-time metrics across products, orders &amp; revenue
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-semibold bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          Live data
+        </div>
+      </motion.div>
 
       {/* Alert */}
-      <AlertBanner products={stats?.lowStockProducts ?? []} />
+      <motion.div variants={fadeUp}>
+        <AlertBanner products={stats?.lowStockProducts ?? []} />
+      </motion.div>
 
       {/* Stat Cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -67,6 +97,7 @@ const Dashboard = () => {
           trend={1}
           trendLabel="+100% from yesterday"
           progress={80}
+          delay={0.05}
         />
         <StatCard
           title="Total Orders"
@@ -76,6 +107,7 @@ const Dashboard = () => {
           trend={1}
           trendLabel="1 order today"
           progress={40}
+          delay={0.1}
         />
         <StatCard
           title="Total Products"
@@ -85,6 +117,7 @@ const Dashboard = () => {
           trend={0}
           trendLabel="No change"
           progress={20}
+          delay={0.15}
         />
         <StatCard
           title="Low Stock"
@@ -94,6 +127,7 @@ const Dashboard = () => {
           trend={-1}
           trendLabel="Needs restocking"
           progress={60}
+          delay={0.2}
         />
       </div>
 
@@ -102,74 +136,103 @@ const Dashboard = () => {
         {[
           {
             title: "Revenue Trend",
-            subtitle: "Daily · Apr 15–16",
+            subtitle: "Daily revenue — last 7 days",
             child: <RevenueChart data={sales} />,
           },
           {
             title: "Sales Volume",
             subtitle: "Orders per day",
-            // child: <SalesChart data={sales} />,
+            child: <SalesChart data={sales} />,
           },
-        ].map(({ title, subtitle, child }) => (
+        ].map(({ title, subtitle, child }, i) => (
           <motion.div
             key={title}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm"
+            variants={fadeUp}
+            className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow duration-300"
           >
-            <p className="text-[14px] font-semibold text-gray-700">{title}</p>
-            <p className="text-[12px] text-gray-400 mb-4">{subtitle}</p>
-            {child}
+            <div className="flex items-start justify-between mb-1">
+              <div>
+                <p className="text-[14px] font-semibold text-slate-700">
+                  {title}
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{subtitle}</p>
+              </div>
+              <button className="w-7 h-7 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 hover:border-indigo-200 transition-colors">
+                <ArrowUpRight size={13} />
+              </button>
+            </div>
+            <div className="mt-4">{child}</div>
           </motion.div>
         ))}
       </div>
 
       {/* Bottom Row */}
       <div className="grid grid-cols-2 gap-4">
-
         {/* Recent Orders */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm"
+          variants={fadeUp}
+          className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm"
         >
-          <p className="text-[14px] font-semibold text-gray-700 mb-1">
-            Recent Orders
-          </p>
-          <p className="text-[12px] text-gray-400 mb-4">
-            Last {stats.recentOrders.length} transactions
-          </p>
-          <table className="w-full text-[13px]">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <p className="text-[14px] font-semibold text-slate-700">
+                Recent Orders
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Last {stats.recentOrders.length} transactions
+              </p>
+            </div>
+            <span className="text-[11px] font-semibold text-indigo-500 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full cursor-pointer hover:bg-indigo-100 transition-colors">
+              View all
+            </span>
+          </div>
+
+          <table className="w-full mt-4">
             <thead>
-              <tr className="text-[11px] text-gray-400 uppercase tracking-wider">
-                <th className="text-left pb-3 font-medium">Order</th>
-                <th className="text-left pb-3 font-medium">Date</th>
-                <th className="text-right pb-3 font-medium">Amount</th>
+              <tr>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-left">
+                  Order
+                </th>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-left">
+                  Date
+                </th>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-right">
+                  Amount
+                </th>
               </tr>
             </thead>
             <tbody>
-              {stats.recentOrders.map((order) => (
-                <tr key={order.id} className="border-t border-gray-50">
-                  <td className="py-2.5">
-                    <p className="text-gray-700 font-medium">
+              {stats.recentOrders.map((order, i) => (
+                <motion.tr
+                  key={order.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
+                  className="border-t border-slate-100 group hover:bg-slate-50/60 transition-colors"
+                >
+                  <td className="py-3 pr-2">
+                    <p className="text-[13px] text-slate-700 font-semibold">
                       #ORD-{String(order.id).padStart(3, "0")}
                     </p>
-                    <p className="text-[11px] text-gray-400">
+                    <p className="text-[11px] text-slate-400">
                       {order.items.length} item(s)
                     </p>
                   </td>
-                  <td className="py-2.5 text-gray-400 font-mono text-[11px]">
+                  <td className="py-3 text-[12px] text-slate-400 font-mono">
                     {new Date(order.createdAt).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",
                     })}
                   </td>
-                  <td className="py-2.5 text-right font-mono font-semibold text-gray-700">
-                    ₹{order.items
-                      .reduce((s, i) => s + i.price * i.quantity, 0)
-                      .toLocaleString("en-IN")}
+                  <td className="py-3 text-right">
+                    <span className="text-[13px] font-bold font-mono text-slate-700">
+                      ₹
+                      {order.items
+                        .reduce((s, i) => s + i.price * i.quantity, 0)
+                        .toLocaleString("en-IN")}
+                    </span>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
@@ -177,43 +240,66 @@ const Dashboard = () => {
 
         {/* Top Products */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm"
+          variants={fadeUp}
+          className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-sm"
         >
-          <p className="text-[14px] font-semibold text-gray-700 mb-1">
-            Top Products
-          </p>
-          <p className="text-[12px] text-gray-400 mb-4">By units sold</p>
-          <TopProductsChart data={topProducts} />
-          <table className="w-full text-[13px] mt-4">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <p className="text-[14px] font-semibold text-slate-700">
+                Top Products
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">By units sold</p>
+            </div>
+            <span className="text-[11px] font-semibold text-indigo-500 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full cursor-pointer hover:bg-indigo-100 transition-colors">
+              View all
+            </span>
+          </div>
+
+          <div className="mt-4">
+            <TopProductsChart data={topProducts} />
+          </div>
+
+          <table className="w-full mt-4">
             <thead>
-              <tr className="text-[11px] text-gray-400 uppercase tracking-wider">
-                <th className="text-left pb-3 font-medium">Product</th>
-                <th className="text-right pb-3 font-medium">Units</th>
-                <th className="text-right pb-3 font-medium">Stock</th>
+              <tr>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-left">
+                  Product
+                </th>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-right">
+                  Units
+                </th>
+                <th className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest pb-3 text-right">
+                  Stock
+                </th>
               </tr>
             </thead>
             <tbody>
-              {topProducts.map((p) => (
-                <tr key={p.productId} className="border-t border-gray-50">
-                  <td className="py-2.5 text-gray-700 font-medium">{p.name}</td>
-                  <td className="py-2.5 text-right font-mono text-gray-500">
+              {topProducts.map((p, i) => (
+                <motion.tr
+                  key={p.productId}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.3 + i * 0.06 }}
+                  className="border-t border-slate-100 hover:bg-slate-50/60 transition-colors"
+                >
+                  <td className="py-3 text-[13px] text-slate-700 font-medium">
+                    {p.name}
+                  </td>
+                  <td className="py-3 text-right text-[13px] font-mono font-semibold text-slate-600">
                     {p.totalSold}
                   </td>
-                  <td className="py-2.5 text-right">
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-100">
+                  <td className="py-3 text-right">
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wide">
                       Low
                     </span>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>
         </motion.div>
-
       </div>
-    </div>
+    </motion.div>
   );
 };
 

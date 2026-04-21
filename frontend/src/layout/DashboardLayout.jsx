@@ -4,16 +4,13 @@ import Navbar from "./Navbar";
 
 const DashboardLayout = () => {
   return (
-    <div className="flex bg-surface-page min-h-screen">
+    <div className="flex bg-slate-50 min-h-screen">
       <Sidebar />
-      <div className="flex-1 flex flex-col ml-sidebar">
+      <div className="flex-1 flex flex-col ml-[220px]">
         <Navbar />
-
-        {/* 🔥 THIS IS THE FIX */}
         <main className="flex-1 p-6">
           <Outlet />
         </main>
-
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import DashboardLayout from "./layout/DashboardLayout";
 import Products from "./pages/Products";
 import Orders from "./pages/Orders";
 import Signup from "./pages/Auth/Signup";
-// import Analytics from ""
+import Analytics from "./pages/Analytics";
 import Stock from "./pages/Stock"; // 🆕
 
 function App() {
@@ -15,7 +15,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Public */}
-        <Route path="/login"  element={<Login />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
 
         {/* Protected */}
@@ -36,23 +36,20 @@ function App() {
               </ProtectedRoute>
             }
           />
-
           {/* All roles */}
           <Route path="products" element={<Products />} />
-          <Route path="orders"   element={<Orders />} />
-
+          <Route path="orders" element={<Orders />} />
           {/* Staff + Manager + Admin */}
           <Route path="stock" element={<Stock />} /> {/* 🆕 */}
-
           {/* Admin + Manager only */}
-          {/* <Route
+          <Route
             path="analytics"
             element={
               <ProtectedRoute role={["ADMIN", "MANAGER"]}>
                 <Analytics />
               </ProtectedRoute>
             }
-          /> */}
+          />
         </Route>
       </Routes>
     </BrowserRouter>

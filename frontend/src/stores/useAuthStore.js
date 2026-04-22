@@ -1,13 +1,13 @@
+// stores/useAuthStore.js
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
 
 const token = localStorage.getItem("token");
-
 let user = null;
 
 if (token) {
   try {
-    user = jwtDecode(token); // 🔥 extract id + role
+    user = jwtDecode(token);
   } catch {
     localStorage.removeItem("token");
   }
@@ -19,13 +19,8 @@ const useAuthStore = create((set) => ({
 
   login: (data) => {
     localStorage.setItem("token", data.token);
-
     const decoded = jwtDecode(data.token);
-
-    set({
-      token: data.token,
-      user: decoded,
-    });
+    set({ token: data.token, user: decoded });
   },
 
   logout: () => {

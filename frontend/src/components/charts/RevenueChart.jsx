@@ -16,12 +16,17 @@ ChartJS.register(
   LinearScale,
   PointElement,
   Tooltip,
-  Filler
+  Filler,
 );
 
 const RevenueChart = ({ data = [] }) => {
   const chartData = {
-    labels: data.map((d) => d.date),
+    labels: data.map((d) =>
+      new Date(d.date).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      }),
+    ),
     datasets: [
       {
         label: "Revenue (₹)",

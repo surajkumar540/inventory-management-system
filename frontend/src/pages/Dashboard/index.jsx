@@ -91,7 +91,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-4 gap-4">
         <StatCard
           title="Total Revenue"
-          value={`₹${stats.totalRevenue.toLocaleString("en-IN")}`}
+          value={`₹${(stats?.totalRevenue ?? 0).toLocaleString("en-IN")}`}
           icon={DollarSign}
           color="indigo"
           trend={1}
@@ -121,7 +121,7 @@ const Dashboard = () => {
         />
         <StatCard
           title="Low Stock"
-          value={stats.lowStockProducts.length}
+          value={stats?.lowStockProducts?.length ?? 0}
           icon={AlertTriangle}
           color="red"
           trend={-1}

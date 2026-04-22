@@ -19,7 +19,11 @@ const Login = () => {
     try {
       const res = await loginUser(form);
       login(res.data);
-      navigate(res.data.user.role === "admin" ? "/" : "/orders");
+      navigate(
+        res.data.user.role === "ADMIN" || res.data.user.role === "MANAGER"
+          ? "/"
+          : "/orders",
+      );
     } catch {
       setError("Invalid email or password. Please try again.");
     } finally {
@@ -47,7 +51,6 @@ const Login = () => {
       >
         {/* Card */}
         <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-2xl shadow-slate-200/60 p-8">
-
           {/* Logo */}
           <div className="flex items-center gap-2 mb-8">
             <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
@@ -63,7 +66,10 @@ const Login = () => {
           </h1>
           <p className="text-[13px] text-slate-400 mb-7">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-indigo-500 font-semibold hover:text-indigo-600 transition-colors">
+            <Link
+              to="/signup"
+              className="text-indigo-500 font-semibold hover:text-indigo-600 transition-colors"
+            >
               Sign up
             </Link>
           </p>
@@ -90,11 +96,17 @@ const Login = () => {
                 Email
               </label>
               <div className="relative">
-                <Mail size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
-                <input type="email" placeholder="you@example.com"
+                <Mail
+                  size={13}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300"
+                />
+                <input
+                  type="email"
+                  placeholder="you@example.com"
                   className={inputClass}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  required />
+                  required
+                />
               </div>
             </div>
 
@@ -104,11 +116,19 @@ const Login = () => {
                 Password
               </label>
               <div className="relative">
-                <Lock size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300" />
-                <input type="password" placeholder="••••••••"
+                <Lock
+                  size={13}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-300"
+                />
+                <input
+                  type="password"
+                  placeholder="••••••••"
                   className={inputClass}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  required />
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                  required
+                />
               </div>
             </div>
 
@@ -120,7 +140,9 @@ const Login = () => {
               {loading ? (
                 <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
               ) : (
-                <>Sign in <ArrowRight size={14} /></>
+                <>
+                  Sign in <ArrowRight size={14} />
+                </>
               )}
             </button>
           </form>

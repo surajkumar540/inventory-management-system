@@ -12,7 +12,12 @@ ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
 
 const SalesChart = ({ data = [] }) => {
   const chartData = {
-    labels: data.map((d) => d.date),
+    labels: data.map((d) =>
+      new Date(d.date).toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+      }),
+    ),
     datasets: [
       {
         label: "Orders",

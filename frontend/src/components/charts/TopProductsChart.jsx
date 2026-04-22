@@ -43,6 +43,15 @@ const TopProductsChart = ({ data = [] }) => {
     },
   };
 
+  // Add above the return:
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-28 flex items-center justify-center text-[12px] text-slate-300">
+        No sales data yet
+      </div>
+    );
+  }
+
   return (
     <div className="h-28">
       <Bar data={chartData} options={options} />

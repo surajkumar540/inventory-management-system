@@ -11,7 +11,7 @@ const OrderForm = ({ onSuccess }) => {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    getProducts().then((res) => setProducts(res.data));
+    getProducts().then((res) => setProducts(res.data.data));
   }, []);
 
   const addToCart = (product) => {

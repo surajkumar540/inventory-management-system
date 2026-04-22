@@ -1,18 +1,55 @@
 // layout/Sidebar.jsx
 import {
-  LayoutDashboard, Package, ShoppingCart,
-  BarChart3, Zap, ChevronRight, ArrowDownUp,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  BarChart3,
+  Zap,
+  ChevronRight,
+  ArrowDownUp,
+  Sparkles,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import useAuthStore from "../stores/useAuthStore";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/",          roles: ["ADMIN", "MANAGER"] },
-  { label: "Products",  icon: Package,          to: "/products",  roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Orders",    icon: ShoppingCart,     to: "/orders",    roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Stock",     icon: ArrowDownUp,      to: "/stock",     roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Analytics", icon: BarChart3,        to: "/analytics", roles: ["ADMIN", "MANAGER"] },
+  {
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    to: "/",
+    roles: ["ADMIN", "MANAGER"],
+  },
+  {
+    label: "Products",
+    icon: Package,
+    to: "/products",
+    roles: ["ADMIN", "MANAGER", "STAFF"],
+  },
+  {
+    label: "Orders",
+    icon: ShoppingCart,
+    to: "/orders",
+    roles: ["ADMIN", "MANAGER", "STAFF"],
+  },
+  {
+    label: "Stock",
+    icon: ArrowDownUp,
+    to: "/stock",
+    roles: ["ADMIN", "MANAGER", "STAFF"],
+  },
+  {
+    label: "Analytics",
+    icon: BarChart3,
+    to: "/analytics",
+    roles: ["ADMIN", "MANAGER"],
+  },
+  {
+    label: "AI Predict",
+    icon: Sparkles,
+    to: "/ai",
+    roles: ["ADMIN", "MANAGER"],
+  },
 ];
 
 const Sidebar = () => {
@@ -20,9 +57,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
-  const filtered = navItems.filter(
-    (item) => item.roles.includes(user?.role)
-  );
+  const filtered = navItems.filter((item) => item.roles.includes(user?.role));
 
   const handleLogout = () => {
     logout();
@@ -60,9 +95,10 @@ const Sidebar = () => {
               <Link
                 to={item.to}
                 className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200 group
-                  ${active
-                    ? "bg-indigo-500/20 text-indigo-300"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  ${
+                    active
+                      ? "bg-indigo-500/20 text-indigo-300"
+                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                   }`}
               >
                 {active && (
@@ -72,9 +108,17 @@ const Sidebar = () => {
                     transition={{ type: "spring", stiffness: 400, damping: 35 }}
                   />
                 )}
-                <item.icon size={15} className={`relative z-10 ${active ? "text-indigo-400" : ""}`} />
+                <item.icon
+                  size={15}
+                  className={`relative z-10 ${active ? "text-indigo-400" : ""}`}
+                />
                 <span className="relative z-10">{item.label}</span>
-                {active && <ChevronRight size={12} className="relative z-10 ml-auto text-indigo-400" />}
+                {active && (
+                  <ChevronRight
+                    size={12}
+                    className="relative z-10 ml-auto text-indigo-400"
+                  />
+                )}
               </Link>
             </motion.div>
           );
@@ -88,8 +132,12 @@ const Sidebar = () => {
             {user?.email?.charAt(0)?.toUpperCase() || "U"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-slate-200 truncate">{user?.email || "User"}</p>
-            <p className="text-[10px] text-slate-500 capitalize">{user?.role?.toLowerCase() || "user"}</p>
+            <p className="text-[12px] font-semibold text-slate-200 truncate">
+              {user?.email || "User"}
+            </p>
+            <p className="text-[10px] text-slate-500 capitalize">
+              {user?.role?.toLowerCase() || "user"}
+            </p>
           </div>
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
         </div>

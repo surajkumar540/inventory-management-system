@@ -9,6 +9,7 @@ import Orders from "./pages/Orders";
 import Signup from "./pages/Auth/Signup";
 import Analytics from "./pages/Analytics";
 import Stock from "./pages/Stock"; // 🆕
+import AI from "./pages/AI";
 
 function App() {
   return (
@@ -47,6 +48,15 @@ function App() {
             element={
               <ProtectedRoute role={["ADMIN", "MANAGER"]}>
                 <Analytics />
+              </ProtectedRoute>
+            }
+          />
+          {/* Admin + Manager only */}
+          <Route
+            path="ai"
+            element={
+              <ProtectedRoute role={["ADMIN", "MANAGER"]}>
+                <AI />
               </ProtectedRoute>
             }
           />

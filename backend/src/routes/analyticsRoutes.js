@@ -5,7 +5,7 @@ import {
 } from "../controllers/analyticsController.js";
 
 import { authMiddleware } from "../middleware/authMiddleware.js";
-import { isAdmin } from "../middleware/adminMiddleware.js";
+import { isAdmin } from "../middleware/roleMiddleware.js";
 
 const router = express.Router();
 

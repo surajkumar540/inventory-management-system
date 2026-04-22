@@ -6,44 +6,39 @@ import prisma from "../prisma/client.js";
 export const getSalesAnalytics = async (req, res) => {
   try {
     const orders = await prisma.order.findMany({
-      include: {
-        items: true,
-      },
+      where: { status: { not: "CANCELLED" } },
+      include: { items: true },
     });
 
+    // Build last 7 days as base (so chart always shows something)
     const dataMap = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().split("T")[0];
+      dataMap[key] = { date: key, totalSales: 0, totalRevenue: 0 };
+    }
 
+    // Fill in real data
     orders.forEach((order) => {
       const date = order.createdAt.toISOString().split("T")[0];
-
       if (!dataMap[date]) {
-        dataMap[date] = {
-          date,
-          totalSales: 0,
-          totalRevenue: 0,
-        };
+        dataMap[date] = { date, totalSales: 0, totalRevenue: 0 };
       }
-
       dataMap[date].totalSales += 1;
-
       order.items.forEach((item) => {
         dataMap[date].totalRevenue += item.quantity * item.price;
       });
     });
 
-    const result = Object.values(dataMap);
+    const result = Object.values(dataMap).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
 
-    res.json({
-      success: true,
-      data: result,
-    });
+    res.json({ success: true, data: result });
   } catch (err) {
     console.error("Analytics Error:", err);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch analytics",
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch analytics" });
   }
 };
 

@@ -1,30 +1,17 @@
+// src/routes/productRoutes.js
 import express from "express";
 import {
-  createProduct,
-  getProducts,
-  updateProduct,
-  deleteProduct
+  createProduct, getProducts, updateProduct, deleteProduct,
 } from "../controllers/productController.js";
-
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { isAdmin } from "../middleware/adminMiddleware.js";
-import { upload } from "../middleware/uploadMiddleware.js"; // 👈 ADD THIS
+import { authMiddleware }       from "../middleware/authMiddleware.js";
+import { isManager, isStaff }   from "../middleware/roleMiddleware.js";
+import { upload }               from "../middleware/uploadMiddleware.js";
 
 const router = express.Router();
 
-// 👤 All users can view
-router.get("/", authMiddleware, getProducts);
-
-// 👑 Only admin can modify + upload image
-router.post(
-  "/",
-  authMiddleware,
-  isAdmin,
-  upload.single("image"),   // 👈 THIS IS MISSING
-  createProduct
-);
-
-router.put("/:id", authMiddleware, isAdmin, updateProduct);
-router.delete("/:id", authMiddleware, isAdmin, deleteProduct);
+router.get("/",     authMiddleware, isStaff,   getProducts);
+router.post("/",    authMiddleware, isManager, upload.single("image"), createProduct);
+router.put("/:id",  authMiddleware, isManager, updateProduct);
+router.delete("/:id", authMiddleware, isManager, deleteProduct);
 
 export default router;

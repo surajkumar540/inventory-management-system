@@ -1,11 +1,12 @@
-import { PrismaClient } from "@prisma/client";
+// src/controllers/productController.js
+import prisma from "../prisma/client.js";
 
-const prisma = new PrismaClient();
-
-// CREATE PRODUCT
+// ========================
+// CREATE PRODUCT (Manager)
+// ========================
 export const createProduct = async (req, res) => {
   try {
-    const { name, price, quantity, sku } = req.body;
+    const { name, price, quantity, sku, threshold, categoryId } = req.body;
 
     const image = req.file
       ? `${req.protocol}://${req.get("host")}/${req.file.path}`
@@ -14,56 +15,96 @@ export const createProduct = async (req, res) => {
     const product = await prisma.product.create({
       data: {
         name,
-        sku: sku || `SKU-${Date.now()}`, // ← fallback if not sent
+        sku: sku || `SKU-${Date.now()}`,
         price: Number(price),
-        quantity: Number(quantity), // ← was getting NaN from "stock"
+        quantity: Number(quantity) || 0,
+        threshold: Number(threshold) || 10,
+        categoryId: categoryId ? Number(categoryId) : null,
         image,
       },
+      include: { category: true },
     });
 
-    res.json(product);
+    res.status(201).json({ success: true, data: product });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// GET ALL PRODUCTS
+// ========================
+// GET ALL PRODUCTS (All roles)
+// ========================
 export const getProducts = async (req, res) => {
   try {
-    const products = await prisma.product.findMany();
-    res.json(products);
+    const { search, categoryId, lowStock } = req.query;
+
+    const where = {};
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { sku:  { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (categoryId) where.categoryId = Number(categoryId);
+    if (lowStock === "true") {
+      where.quantity = { lt: prisma.product.fields.threshold };
+    }
+
+    const products = await prisma.product.findMany({
+      where,
+      include: { category: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    // Flag low stock in response
+    const data = products.map((p) => ({
+      ...p,
+      isLowStock: p.quantity < p.threshold,
+    }));
+
+    res.json({ success: true, data });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// UPDATE PRODUCT
+// ========================
+// UPDATE PRODUCT (Manager)
+// ========================
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const { name, price, threshold, categoryId, sku } = req.body;
 
     const product = await prisma.product.update({
       where: { id: Number(id) },
-      data: req.body,
+      data: {
+        ...(name        && { name }),
+        ...(price       && { price: Number(price) }),
+        ...(threshold   && { threshold: Number(threshold) }),
+        ...(categoryId  && { categoryId: Number(categoryId) }),
+        ...(sku         && { sku }),
+      },
+      include: { category: true },
     });
 
-    res.json(product);
+    res.json({ success: true, data: product });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 
-// DELETE PRODUCT
+// ========================
+// DELETE PRODUCT (Manager)
+// ========================
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
 
-    await prisma.product.delete({
-      where: { id: Number(id) },
-    });
+    await prisma.product.delete({ where: { id: Number(id) } });
 
-    res.json({ message: "Product deleted" });
+    res.json({ success: true, message: "Product deleted" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ success: false, message: err.message });
   }
 };

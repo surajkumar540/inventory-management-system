@@ -1,5 +1,6 @@
 // src/controllers/stockController.js
 import prisma from "../prisma/client.js";
+import { createAuditLog } from "../utils/auditLogger.js"; // ADD at top
 
 // ========================
 // STOCK IN — goods received
@@ -10,11 +11,19 @@ export const stockIn = async (req, res) => {
     const userId = req.user.id;
 
     if (!productId || quantity <= 0) {
-      return res.status(400).json({ success: false, message: "productId and quantity > 0 required" });
+      return res.status(400).json({
+        success: false,
+        message: "productId and quantity > 0 required",
+      });
     }
 
-    const product = await prisma.product.findUnique({ where: { id: Number(productId) } });
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const product = await prisma.product.findUnique({
+      where: { id: Number(productId) },
+    });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     const [updated] = await prisma.$transaction([
       prisma.product.update({
@@ -31,6 +40,11 @@ export const stockIn = async (req, res) => {
       }),
     ]);
 
+    await createAuditLog(req, "STOCK_IN", "Stock", productId, {
+      quantity,
+      reason,
+    });
+
     res.json({ success: true, message: "Stock added", data: updated });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -46,14 +60,25 @@ export const stockOut = async (req, res) => {
     const userId = req.user.id;
 
     if (!productId || quantity <= 0) {
-      return res.status(400).json({ success: false, message: "productId and quantity > 0 required" });
+      return res.status(400).json({
+        success: false,
+        message: "productId and quantity > 0 required",
+      });
     }
 
-    const product = await prisma.product.findUnique({ where: { id: Number(productId) } });
-    if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+    const product = await prisma.product.findUnique({
+      where: { id: Number(productId) },
+    });
+    if (!product)
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
 
     if (product.quantity < quantity) {
-      return res.status(400).json({ success: false, message: `Only ${product.quantity} units available` });
+      return res.status(400).json({
+        success: false,
+        message: `Only ${product.quantity} units available`,
+      });
     }
 
     const [updated] = await prisma.$transaction([
@@ -70,6 +95,11 @@ export const stockOut = async (req, res) => {
         },
       }),
     ]);
+
+    await createAuditLog(req, "STOCK_OUT", "Stock", productId, {
+      quantity,
+      reason,
+    });
 
     res.json({ success: true, message: "Stock removed", data: updated });
   } catch (err) {

@@ -1,5 +1,6 @@
 // src/controllers/productController.js
 import prisma from "../prisma/client.js";
+import { createAuditLog } from "../utils/auditLogger.js"; // ADD at top
 
 // ========================
 // CREATE PRODUCT (Manager)
@@ -25,6 +26,11 @@ export const createProduct = async (req, res) => {
       include: { category: true },
     });
 
+    await createAuditLog(req, "PRODUCT_CREATED", "Product", product.id, {
+      name: product.name,
+      sku: product.sku,
+    });
+
     res.status(201).json({ success: true, data: product });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -42,7 +48,7 @@ export const getProducts = async (req, res) => {
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
-        { sku:  { contains: search, mode: "insensitive" } },
+        { sku: { contains: search, mode: "insensitive" } },
       ];
     }
     if (categoryId) where.categoryId = Number(categoryId);
@@ -79,13 +85,18 @@ export const updateProduct = async (req, res) => {
     const product = await prisma.product.update({
       where: { id: Number(id) },
       data: {
-        ...(name        && { name }),
-        ...(price       && { price: Number(price) }),
-        ...(threshold   && { threshold: Number(threshold) }),
-        ...(categoryId  && { categoryId: Number(categoryId) }),
-        ...(sku         && { sku }),
+        ...(name && { name }),
+        ...(price && { price: Number(price) }),
+        ...(threshold && { threshold: Number(threshold) }),
+        ...(categoryId && { categoryId: Number(categoryId) }),
+        ...(sku && { sku }),
       },
       include: { category: true },
+    });
+
+    await createAuditLog(req, "PRODUCT_UPDATED", "Product", updated.id, {
+      before: existingProduct,
+      after: updated,
     });
 
     res.json({ success: true, data: product });
@@ -102,6 +113,8 @@ export const deleteProduct = async (req, res) => {
     const { id } = req.params;
 
     await prisma.product.delete({ where: { id: Number(id) } });
+
+    await createAuditLog(req, "ORDER_CANCELLED", "Order", id);
 
     res.json({ success: true, message: "Product deleted" });
   } catch (err) {

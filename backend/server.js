@@ -12,6 +12,9 @@ import stockRoutes     from "./src/routes/stockRoutes.js";
 import dashboardRoutes from "./src/routes/dashboardRoutes.js";
 import analyticsRoutes from "./src/routes/analyticsRoutes.js";
 import aiRoutes        from "./src/routes/aiRoutes.js";
+import auditRoutes from "./src/routes/auditRoutes.js";
+
+import { globalLimiter } from "./src/middleware/rateLimitMiddleware.js";
 
 const app = express();
 
@@ -23,7 +26,7 @@ app.use(cors());
 app.use(helmet());
 app.use(morgan("dev"));
 app.use("/uploads", express.static("uploads"));
-
+app.use(globalLimiter);
 // ========================
 // ROUTES
 // ========================
@@ -34,6 +37,7 @@ app.use("/api/stock",     stockRoutes);       // NEW
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/ai",        aiRoutes);          // NEW
+app.use("/api/audit",     auditRoutes);       // NEW
 
 app.get("/", (req, res) => res.send("Inventory API 🚀"));
 

@@ -1,92 +1,148 @@
-// src/controllers/aiController.js
 import prisma from "../prisma/client.js";
 
-// ========================
-// AI DEMAND PREDICTION
-// ========================
 export const getDemandPrediction = async (req, res) => {
   try {
-    // Gather past 30 days of sales data grouped by product
+    // Last 30 days ka sales data fetch karo
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const salesData = await prisma.orderItem.groupBy({
       by: ["productId"],
-      _sum: { quantity: true },
       where: {
         order: {
           createdAt: { gte: thirtyDaysAgo },
-          status: { not: "CANCELLED" },
+          status: "COMPLETED",
         },
+      },
+      _sum: { quantity: true },
+      _count: { orderId: true },
+    });
+
+    // Product details merge karo
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        quantity: true,
+        threshold: true,
+        price: true,
       },
     });
 
-    const products = await prisma.product.findMany({
-      select: { id: true, name: true, quantity: true, threshold: true, price: true },
-    });
-
-    // Merge sales data with product info
-    const enriched = products.map((p) => {
-      const sold = salesData.find((s) => s.productId === p.id);
+    const enrichedData = products.map((p) => {
+      const sales = salesData.find((s) => s.productId === p.id);
       return {
-        id:             p.id,
-        name:           p.name,
-        currentStock:   p.quantity,
-        threshold:      p.threshold,
-        soldLast30Days: sold?._sum?.quantity || 0,
+        productId: p.id,
+        name: p.name,
+        sku: p.sku,
+        currentStock: p.quantity,
+        threshold: p.threshold,
+        price: p.price,
+        unitsSoldLast30Days: sales?._sum?.quantity || 0,
+        orderCount: sales?._count?.orderId || 0,
       };
     });
 
-    // Build prompt for Claude
-    const prompt = `
-You are an inventory analyst. Based on the last 30 days of sales data below, provide:
-1. Demand prediction for next 30 days (per product)
-2. Restock recommendations (which products to order and how much)
-3. Any alerts for critically low or overstocked items
-
-Sales data (JSON):
-${JSON.stringify(enriched, null, 2)}
-
-Respond in JSON format:
+    // Grok API call
+    const response = await fetch(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "system",
+              content: `You are an inventory management AI assistant. 
+Analyze sales data and return ONLY a valid JSON object — no markdown, no explanation, no backticks.
+Response format:
 {
   "predictions": [
-    { "productId": 1, "productName": "...", "predictedDemand": 50, "confidence": "HIGH|MEDIUM|LOW" }
+    {
+      "productId": number,
+      "productName": string,
+      "predictedDemand": number,
+      "confidence": "HIGH" | "MEDIUM" | "LOW",
+      "recommendation": string
+    }
   ],
   "restockRecommendations": [
-    { "productId": 1, "productName": "...", "recommendedQty": 100, "urgency": "URGENT|NORMAL|LOW" }
+    {
+      "productId": number,
+      "productName": string,
+      "currentStock": number,
+      "suggestedRestockQty": number,
+      "urgency": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"
+    }
   ],
-  "alerts": ["..."]
-}
-`;
-
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type":         "application/json",
-        "x-api-key":            process.env.ANTHROPIC_API_KEY,
-        "anthropic-version":    "2023-06-01",
+  "alerts": [
+    {
+      "type": "LOW_STOCK" | "HIGH_DEMAND" | "OVERSTOCK",
+      "message": string,
+      "productId": number
+    }
+  ]
+}`,
+            },
+            {
+              role: "user",
+              content: `Analyze this inventory data and give demand predictions:\n${JSON.stringify(enrichedData, null, 2)}`,
+            },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        model:      "claude-opus-4-5",
-        max_tokens: 1024,
-        messages:   [{ role: "user", content: prompt }],
-      }),
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`AI API error: ${response.status}`);
+      const errText = await response.text();
+      console.error("Grok API Error:", errText);
+      return res
+        .status(500)
+        .json({ error: "AI service failed", details: errText });
     }
 
-    const aiData = await response.json();
-    const rawText = aiData.content?.[0]?.text || "{}";
+    const data = await response.json();
+    const rawText = data.choices[0].message.content;
 
-    // Strip markdown fences if present
-    const cleaned = rawText.replace(/```json|```/g, "").trim();
-    const parsed  = JSON.parse(cleaned);
+    // JSON parse karo
+    let parsed;
+    try {
+      const clean = rawText.replace(/```json|```/g, "").trim();
+      parsed = JSON.parse(clean);
+    } catch (e) {
+      console.error("JSON parse failed:", rawText);
+      return res
+        .status(500)
+        .json({ error: "AI response parse failed", raw: rawText });
+    }
 
-    res.json({ success: true, data: { salesSummary: enriched, aiAnalysis: parsed } });
+    res.json({
+      success: true,
+      generatedAt: new Date().toISOString(),
+      dataPoints: enrichedData.length,
+      data: {
+        aiAnalysis: {
+          predictions: parsed.predictions,
+          restockRecommendations: parsed.restockRecommendations,
+          alerts: parsed.alerts,
+        },
+        salesSummary: enrichedData.map((p) => ({
+          id: p.productId,
+          name: p.name,
+          currentStock: p.currentStock,
+          threshold: p.threshold,
+          soldLast30Days: p.unitsSoldLast30Days,
+        })),
+      },
+    });
   } catch (err) {
-    console.error("AI Error:", err.message);
-    res.status(500).json({ success: false, message: err.message });
+    console.error("AI Controller Error:", err);
+    res.status(500).json({ error: err.message });
   }
 };

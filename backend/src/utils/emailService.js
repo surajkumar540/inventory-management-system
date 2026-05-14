@@ -1,33 +1,47 @@
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let transporter;
+
+// Create fake SMTP account (Ethereal)
+const createTransporter = async () => {
+  const testAccount = await nodemailer.createTestAccount();
+
+  transporter = nodemailer.createTransport({
+    host: "smtp.ethereal.email",
+    port: 587,
+    auth: {
+      user: testAccount.user,
+      pass: testAccount.pass,
+    },
+  });
+
+  console.log("📧 Ethereal Account Created:");
+  console.log("User:", testAccount.user);
+  console.log("Pass:", testAccount.pass);
+};
+
+await createTransporter();
 
 export const sendOTPEmail = async (toEmail, otp, type = "verify") => {
-  const subject = type === "verify"
-    ? "Verify your StockFlow account"
-    : "Your StockFlow login OTP";
+  const subject =
+    type === "verify"
+      ? "Verify your StockFlow account"
+      : "Your login OTP";
 
-  const message = type === "verify"
-    ? `Welcome to StockFlow! Your verification OTP is:`
-    : `Your login OTP is:`;
-
-  await resend.emails.send({
-    from: process.env.FROM_EMAIL,
+  const info = await transporter.sendMail({
+    from: `"StockFlow" <no-reply@stockflow.com>`,
     to: toEmail,
     subject,
     html: `
-      <div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px;">
-        <h2 style="color:#1e293b;margin-bottom:8px;">StockFlow</h2>
-        <p style="color:#64748b;font-size:14px;">${message}</p>
-        <div style="background:#f1f5f9;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
-          <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#6366f1;">
-            ${otp}
-          </span>
-        </div>
-        <p style="color:#94a3b8;font-size:12px;">
-          This OTP expires in <strong>10 minutes</strong>. Do not share it with anyone.
-        </p>
+      <div style="font-family:sans-serif;padding:20px">
+        <h2>StockFlow</h2>
+        <p>Your OTP is:</p>
+        <h1 style="letter-spacing:5px;color:#6366f1">${otp}</h1>
+        <p>Valid for 10 minutes</p>
       </div>
     `,
   });
+
+  // 🔥 THIS IS MAGIC LINE
+  console.log("Preview URL:", nodemailer.getTestMessageUrl(info));
 };

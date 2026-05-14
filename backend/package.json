@@ -11,7 +11,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -21,10 +20,12 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.10.1",
     "multer": "^2.1.1",
+    "nodemailer": "^8.0.7",
     "redis": "^5.12.1",
     "resend": "^6.12.2"
   },
   "devDependencies": {
-    "prisma": "^5.22.0"
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
   }
 }

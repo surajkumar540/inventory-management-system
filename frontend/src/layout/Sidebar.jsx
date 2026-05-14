@@ -1,19 +1,62 @@
 import {
-  LayoutDashboard, Package, ShoppingCart,
-  BarChart3, Zap, ChevronRight, ArrowDownUp,
-  Sparkles, X,
+  LayoutDashboard,
+  Package,
+  ShoppingCart,
+  BarChart3,
+  Zap,
+  ChevronRight,
+  ArrowDownUp,
+  Sparkles,
+  X,
+  Settings,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import useAuthStore from "../stores/useAuthStore";
 
 const navItems = [
-  { label: "Dashboard", icon: LayoutDashboard, to: "/",          roles: ["ADMIN", "MANAGER"] },
-  { label: "Products",  icon: Package,         to: "/products",  roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Orders",    icon: ShoppingCart,    to: "/orders",    roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Stock",     icon: ArrowDownUp,     to: "/stock",     roles: ["ADMIN", "MANAGER", "STAFF"] },
-  { label: "Analytics", icon: BarChart3,       to: "/analytics", roles: ["ADMIN", "MANAGER"] },
-  { label: "AI Predict",icon: Sparkles,        to: "/ai",        roles: ["ADMIN", "MANAGER"] },
+  {
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    to: "/",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
+  },
+  {
+    label: "Products",
+    icon: Package,
+    to: "/products",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
+  },
+  {
+    label: "Orders",
+    icon: ShoppingCart,
+    to: "/orders",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
+  },
+  {
+    label: "Stock",
+    icon: ArrowDownUp,
+    to: "/stock",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
+  },
+  {
+    label: "Analytics",
+    icon: BarChart3,
+    to: "/analytics",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN"],
+  },
+  {
+    label: "AI Predict",
+    icon: Sparkles,
+    to: "/ai",
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    label: "Settings",
+    icon: Settings,
+    to: "/settings",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN"],
+  },
 ];
 
 // ── Shared nav content (used in both desktop + mobile) ──────────────────────
@@ -70,9 +113,10 @@ const SidebarContent = ({ onClose }) => {
                 to={item.to}
                 onClick={onClose}
                 className={`relative flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-all duration-200
-                  ${active
-                    ? "bg-indigo-500/20 text-indigo-300"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  ${
+                    active
+                      ? "bg-indigo-500/20 text-indigo-300"
+                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
                   }`}
               >
                 {active && (
@@ -82,10 +126,16 @@ const SidebarContent = ({ onClose }) => {
                     transition={{ type: "spring", stiffness: 400, damping: 35 }}
                   />
                 )}
-                <item.icon size={15} className={`relative z-10 ${active ? "text-indigo-400" : ""}`} />
+                <item.icon
+                  size={15}
+                  className={`relative z-10 ${active ? "text-indigo-400" : ""}`}
+                />
                 <span className="relative z-10">{item.label}</span>
                 {active && (
-                  <ChevronRight size={12} className="relative z-10 ml-auto text-indigo-400" />
+                  <ChevronRight
+                    size={12}
+                    className="relative z-10 ml-auto text-indigo-400"
+                  />
                 )}
               </Link>
             </motion.div>

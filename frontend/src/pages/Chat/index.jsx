@@ -1,9 +1,12 @@
 import { useEffect, useState, useRef } from "react";
-import { useQuery, useQueryClient }    from "@tanstack/react-query";
-import { getMyConversations, getOrCreateConversation, getMessages } from "../../api/chat";
-import useAuthStore   from "../../stores/useAuthStore";
-import socket         from "../../socket";
-import { MessageCircle, Send } from "lucide-react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import {
+  getMyConversations, getOrCreateConversation,
+  getMessages, deleteConversation,
+} from "../../api/chat";
+import useAuthStore      from "../../stores/useAuthStore";
+import socket            from "../../socket";
+import { MessageCircle, Send, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
 const ROLE_COLORS = {
@@ -13,6 +16,17 @@ const ROLE_COLORS = {
   STAFF:        "text-gray-400",
 };
 
+function formatLastSeen(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  const now  = new Date();
+  const diff = Math.floor((now - date) / 1000);
+  if (diff < 60)  return "last seen just now";
+  if (diff < 3600) return `last seen ${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `last seen ${Math.floor(diff / 3600)}h ago`;
+  return `last seen ${date.toLocaleDateString()}`;
+}
+
 export default function Chat() {
   const { user: me, token }           = useAuthStore();
   const qc                            = useQueryClient();
@@ -20,24 +34,43 @@ export default function Chat() {
   const [messages, setMessages]       = useState([]);
   const [text, setText]               = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingUsers, setTypingUsers] = useState({});   // { userId: bool }
+  const [lastSeenMap, setLastSeenMap] = useState({});   // { userId: isoString }
   const [searchParams]                = useSearchParams();
   const bottomRef                     = useRef(null);
   const autoOpenDone                  = useRef(false);
+  const typingTimeout                 = useRef(null);
 
-  // connect socket
+  // socket setup
   useEffect(() => {
     socket.auth = { token };
     socket.connect();
 
     socket.on("onlineUsers", (users) => setOnlineUsers(users));
+
     socket.on("newMessage", (msg) => {
       setMessages((prev) => [...prev, msg]);
       qc.invalidateQueries(["conversations"]);
     });
 
+    socket.on("typing", ({ userId, isTyping }) => {
+      setTypingUsers((prev) => ({ ...prev, [userId]: isTyping }));
+    });
+
+    socket.on("lastSeen", ({ userId, time }) => {
+      setLastSeenMap((prev) => ({ ...prev, [userId]: time }));
+    });
+
+    socket.on("lastSeenMap", (map) => {
+      setLastSeenMap(map);
+    });
+
     return () => {
       socket.off("onlineUsers");
       socket.off("newMessage");
+      socket.off("typing");
+      socket.off("lastSeen");
+      socket.off("lastSeenMap");
       socket.disconnect();
     };
   }, []);
@@ -52,7 +85,7 @@ export default function Chat() {
     queryFn: () => getMyConversations().then((r) => r.data.data),
   });
 
-  // auto-open from ?userId= param — runs once after conversations load
+  // auto-open from ?userId=
   useEffect(() => {
     if (autoOpenDone.current) return;
     const userId = searchParams.get("userId");
@@ -78,19 +111,39 @@ export default function Chat() {
   const sendMessage = () => {
     if (!text.trim() || !activeConv) return;
     socket.emit("sendMessage", { conversationId: activeConv.id, content: text.trim() });
+    socket.emit("typing", { conversationId: activeConv.id, isTyping: false });
     setText("");
   };
+
+  const handleTyping = (e) => {
+    setText(e.target.value);
+    if (!activeConv) return;
+    socket.emit("typing", { conversationId: activeConv.id, isTyping: true });
+    clearTimeout(typingTimeout.current);
+    typingTimeout.current = setTimeout(() => {
+      socket.emit("typing", { conversationId: activeConv.id, isTyping: false });
+    }, 2000);
+  };
+
+  const removeMutation = useMutation({
+    mutationFn: deleteConversation,
+    onSuccess: () => {
+      qc.invalidateQueries(["conversations"]);
+      setActiveConv(null);
+      setMessages([]);
+    },
+  });
 
   const getOtherUser = (conv) =>
     conv.user1.id === me.id ? conv.user2 : conv.user1;
 
   const lastMessage = (conv) =>
-    conv.messages?.[0]?.content || "No messages yet";
+    conv.messages?.[0]?.content || "";
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm">
 
-      {/* LEFT: conversation list */}
+      {/* LEFT */}
       <div className="w-[280px] border-r border-gray-100 flex flex-col shrink-0">
         <div className="px-4 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
@@ -112,6 +165,7 @@ export default function Chat() {
               const other    = getOtherUser(conv);
               const isOnline = onlineUsers.includes(other.id);
               const isActive = activeConv?.id === conv.id;
+              const isTyping = typingUsers[other.id];
               return (
                 <div
                   key={conv.id}
@@ -129,7 +183,13 @@ export default function Chat() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800 truncate">{other.name}</p>
-                    <p className="text-xs text-gray-400 truncate">{lastMessage(conv)}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {isTyping ? (
+                        <span className="text-emerald-500 italic">typing...</span>
+                      ) : (
+                        lastMessage(conv)
+                      )}
+                    </p>
                   </div>
                 </div>
               );
@@ -138,15 +198,17 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* RIGHT: message area */}
+      {/* RIGHT */}
       {activeConv ? (
         <div className="flex-1 flex flex-col">
 
           {/* header */}
-          <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3">
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-3">
             {(() => {
               const other    = getOtherUser(activeConv);
               const isOnline = onlineUsers.includes(other.id);
+              const isTyping = typingUsers[other.id];
+              const lsText   = !isOnline ? formatLastSeen(lastSeenMap[other.id]) : null;
               return (
                 <>
                   <div className="relative">
@@ -157,15 +219,32 @@ export default function Chat() {
                       <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white" />
                     )}
                   </div>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-semibold text-gray-800">{other.name}</p>
-                    <p className={`text-xs font-medium ${ROLE_COLORS[other.role]}`}>
-                      {other.role?.replace(/_/g, " ")}
-                      <span className={`ml-2 ${isOnline ? "text-emerald-500" : "text-gray-300"}`}>
-                        ● {isOnline ? "Online" : "Offline"}
-                      </span>
+                    <p className="text-xs">
+                      {isTyping ? (
+                        <span className="text-emerald-500 italic">typing...</span>
+                      ) : isOnline ? (
+                        <span className="text-emerald-500">● Online</span>
+                      ) : lsText ? (
+                        <span className="text-gray-400">{lsText}</span>
+                      ) : (
+                        <span className={`font-medium ${ROLE_COLORS[other.role]}`}>
+                          {other.role?.replace(/_/g, " ")}
+                        </span>
+                      )}
                     </p>
                   </div>
+                  <button
+                    onClick={() => {
+                      if (window.confirm("Delete this conversation?"))
+                        removeMutation.mutate(activeConv.id);
+                    }}
+                    className="p-2 text-gray-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50"
+                    title="Delete conversation"
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </>
               );
             })()}
@@ -173,23 +252,29 @@ export default function Chat() {
 
           {/* messages */}
           <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-2">
-            {messages.map((msg) => {
-              const isMine = msg.senderId === me.id;
-              return (
-                <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[65%] px-4 py-2 rounded-2xl text-sm
-                    ${isMine
-                      ? "bg-blue-600 text-white rounded-br-sm"
-                      : "bg-gray-100 text-gray-800 rounded-bl-sm"}`}
-                  >
-                    <p>{msg.content}</p>
-                    <p className={`text-[10px] mt-1 ${isMine ? "text-blue-200" : "text-gray-400"}`}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    </p>
+            {messages.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center">
+                <p className="text-xs text-gray-300">No messages yet. Say hello!</p>
+              </div>
+            ) : (
+              messages.map((msg) => {
+                const isMine = msg.senderId === me.id;
+                return (
+                  <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[65%] px-4 py-2 rounded-2xl text-sm
+                      ${isMine
+                        ? "bg-blue-600 text-white rounded-br-sm"
+                        : "bg-gray-100 text-gray-800 rounded-bl-sm"}`}
+                    >
+                      <p>{msg.content}</p>
+                      <p className={`text-[10px] mt-1 ${isMine ? "text-blue-200" : "text-gray-400"}`}>
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
             <div ref={bottomRef} />
           </div>
 
@@ -198,7 +283,7 @@ export default function Chat() {
             <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-2">
               <input
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={handleTyping}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Type a message..."
                 className="flex-1 bg-transparent text-sm text-gray-800 outline-none placeholder-gray-400"

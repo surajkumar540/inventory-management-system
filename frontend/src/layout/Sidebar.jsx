@@ -9,6 +9,7 @@ import {
   Sparkles,
   X,
   Settings,
+  MessageCircle,
 } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,7 +56,14 @@ const navItems = [
     label: "Settings",
     icon: Settings,
     to: "/settings",
-    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN","STAFF"],
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
+  },
+
+  {
+    label: "Chat",
+    icon: MessageCircle,
+    to: "/chat",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN", "STAFF"],
   },
 ];
 

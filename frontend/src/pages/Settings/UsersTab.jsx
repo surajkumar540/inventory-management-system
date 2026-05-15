@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getUsers, createUser, updateUser, deleteUser } from "../../api/users";
 import { getBranches } from "../../api/branches";
 import useAuthStore from "../../stores/useAuthStore";
+import { MessageCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const ROLES_BY_CALLER = {
   SUPER_ADMIN: ["ADMIN", "BRANCH_ADMIN", "STAFF"],
@@ -27,6 +29,8 @@ const ROLE_COLORS = {
 
 export default function UsersTab() {
   const { user: me } = useAuthStore();
+  const navigate = useNavigate();
+
   const ROLES = ROLES_BY_CALLER[me?.role] || ["STAFF"];
   const isReadOnly = me?.role === "STAFF";
 
@@ -157,23 +161,30 @@ export default function UsersTab() {
                   </span>
                 </td>
                 <td className="py-3">
-                  <div className="flex gap-2 justify-end">
-                  {!isReadOnly && (
+                  <div className="flex gap-2 justify-end items-center">
                     <button
-                      onClick={() => openEdit(u)}
-                      className="text-blue-500 hover:underline text-xs"
+                      onClick={() => navigate(`/chat?userId=${u.id}`)}
+                      className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                      title="Open chat"
                     >
-                      Edit
+                      <MessageCircle size={15} />
                     </button>
-                  )}
-                  {!isReadOnly && (
-                    <button
-                      onClick={() => remove.mutate(u.id)}
-                      className="text-red-500 hover:underline text-xs"
-                    >
-                      Delete
-                    </button>
-                  )}
+                    {!isReadOnly && (
+                      <>
+                        <button
+                          onClick={() => openEdit(u)}
+                          className="text-blue-500 hover:underline text-xs"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => remove.mutate(u.id)}
+                          className="text-red-500 hover:underline text-xs"
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>

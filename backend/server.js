@@ -30,8 +30,8 @@ const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-// online users map: userId -> socketId
-const onlineUsers = new Map();
+const onlineUsers = new Map(); // userId -> socketId
+const lastSeen    = new Map(); // userId -> ISO string
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -47,11 +47,19 @@ io.use((socket, next) => {
 
 io.on("connection", (socket) => {
   const userId = socket.user.id;
+
   onlineUsers.set(userId, socket.id);
   io.emit("onlineUsers", Array.from(onlineUsers.keys()));
 
+  // send current lastSeen map to newly connected user
+  socket.emit("lastSeenMap", Object.fromEntries(lastSeen));
+
   socket.on("joinConversation", (conversationId) => {
     socket.join(`conv_${conversationId}`);
+  });
+
+  socket.on("typing", ({ conversationId, isTyping }) => {
+    socket.to(`conv_${conversationId}`).emit("typing", { userId, isTyping });
   });
 
   socket.on("sendMessage", async ({ conversationId, content }) => {
@@ -59,6 +67,7 @@ io.on("connection", (socket) => {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
       });
+
       if (!conversation) return;
       if (conversation.user1Id !== userId && conversation.user2Id !== userId) return;
 
@@ -79,8 +88,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    lastSeen.set(userId, new Date().toISOString());
     onlineUsers.delete(userId);
     io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+    io.emit("lastSeen", { userId, time: lastSeen.get(userId) });
   });
 });
 

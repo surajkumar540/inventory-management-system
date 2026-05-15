@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import {
-  getMyConversations, getOrCreateConversation,
-  getMessages, deleteConversation,
+  getMyConversations,
+  getOrCreateConversation,
+  getMessages,
+  deleteConversation,
 } from "../../api/chat";
-import useAuthStore      from "../../stores/useAuthStore";
-import socket            from "../../socket";
+import useAuthStore from "../../stores/useAuthStore";
+import socket from "../../socket";
 import { MessageCircle, Send, Trash2 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
@@ -21,8 +23,8 @@ function formatLastSeen(iso) {
   const date = new Date(iso);
   const now  = new Date();
   const diff = Math.floor((now - date) / 1000);
-  if (diff < 60)  return "last seen just now";
-  if (diff < 3600) return `last seen ${Math.floor(diff / 60)}m ago`;
+  if (diff < 60)    return "last seen just now";
+  if (diff < 3600)  return `last seen ${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `last seen ${Math.floor(diff / 3600)}h ago`;
   return `last seen ${date.toLocaleDateString()}`;
 }
@@ -34,8 +36,9 @@ export default function Chat() {
   const [messages, setMessages]       = useState([]);
   const [text, setText]               = useState("");
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [typingUsers, setTypingUsers] = useState({});   // { userId: bool }
-  const [lastSeenMap, setLastSeenMap] = useState({});   // { userId: isoString }
+  const [typingUsers, setTypingUsers] = useState({});
+  const [lastSeenMap, setLastSeenMap] = useState({});
+  const [deleteMenu, setDeleteMenu]   = useState(false);
   const [searchParams]                = useSearchParams();
   const bottomRef                     = useRef(null);
   const autoOpenDone                  = useRef(false);
@@ -80,6 +83,13 @@ export default function Chat() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // close delete menu on outside click
+  useEffect(() => {
+    const handler = () => setDeleteMenu(false);
+    if (deleteMenu) document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [deleteMenu]);
+
   const { data: conversations, isLoading } = useQuery({
     queryKey: ["conversations"],
     queryFn: () => getMyConversations().then((r) => r.data.data),
@@ -100,6 +110,7 @@ export default function Chat() {
       const res  = await getOrCreateConversation(userId);
       const conv = res.data.data;
       setActiveConv(conv);
+      setDeleteMenu(false);
       socket.emit("joinConversation", conv.id);
       const msgs = await getMessages(conv.id);
       setMessages(msgs.data.data);
@@ -110,7 +121,10 @@ export default function Chat() {
 
   const sendMessage = () => {
     if (!text.trim() || !activeConv) return;
-    socket.emit("sendMessage", { conversationId: activeConv.id, content: text.trim() });
+    socket.emit("sendMessage", {
+      conversationId: activeConv.id,
+      content: text.trim(),
+    });
     socket.emit("typing", { conversationId: activeConv.id, isTyping: false });
     setText("");
   };
@@ -126,11 +140,13 @@ export default function Chat() {
   };
 
   const removeMutation = useMutation({
-    mutationFn: deleteConversation,
+    mutationFn: ({ conversationId, deleteFor }) =>
+      deleteConversation(conversationId, deleteFor),
     onSuccess: () => {
       qc.invalidateQueries(["conversations"]);
       setActiveConv(null);
       setMessages([]);
+      setDeleteMenu(false);
     },
   });
 
@@ -143,7 +159,7 @@ export default function Chat() {
   return (
     <div className="flex h-[calc(100vh-64px)] bg-white rounded-xl overflow-hidden border border-gray-100 shadow-sm">
 
-      {/* LEFT */}
+      {/* ── LEFT: conversation list ── */}
       <div className="w-[280px] border-r border-gray-100 flex flex-col shrink-0">
         <div className="px-4 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
@@ -182,7 +198,9 @@ export default function Chat() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{other.name}</p>
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {other.name}
+                    </p>
                     <p className="text-xs text-gray-400 truncate">
                       {isTyping ? (
                         <span className="text-emerald-500 italic">typing...</span>
@@ -198,7 +216,7 @@ export default function Chat() {
         </div>
       </div>
 
-      {/* RIGHT */}
+      {/* ── RIGHT: message area ── */}
       {activeConv ? (
         <div className="flex-1 flex flex-col">
 
@@ -235,16 +253,44 @@ export default function Chat() {
                       )}
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      if (window.confirm("Delete this conversation?"))
-                        removeMutation.mutate(activeConv.id);
-                    }}
-                    className="p-2 text-gray-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50"
-                    title="Delete conversation"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+
+                  {/* delete menu */}
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setDeleteMenu((p) => !p)}
+                      className="p-2 text-gray-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50"
+                      title="Delete conversation"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+
+                    {deleteMenu && (
+                      <div className="absolute right-0 top-9 bg-white border border-gray-100 rounded-xl shadow-lg z-50 w-48 overflow-hidden">
+                        <button
+                          onClick={() =>
+                            removeMutation.mutate({
+                              conversationId: activeConv.id,
+                              deleteFor: "me",
+                            })
+                          }
+                          className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        >
+                          Delete for me
+                        </button>
+                        <button
+                          onClick={() =>
+                            removeMutation.mutate({
+                              conversationId: activeConv.id,
+                              deleteFor: "everyone",
+                            })
+                          }
+                          className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors border-t border-gray-50"
+                        >
+                          Delete for everyone
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </>
               );
             })()}
@@ -260,15 +306,22 @@ export default function Chat() {
               messages.map((msg) => {
                 const isMine = msg.senderId === me.id;
                 return (
-                  <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[65%] px-4 py-2 rounded-2xl text-sm
-                      ${isMine
-                        ? "bg-blue-600 text-white rounded-br-sm"
-                        : "bg-gray-100 text-gray-800 rounded-bl-sm"}`}
+                  <div
+                    key={msg.id}
+                    className={`flex ${isMine ? "justify-end" : "justify-start"}`}
+                  >
+                    <div
+                      className={`max-w-[65%] px-4 py-2 rounded-2xl text-sm
+                        ${isMine
+                          ? "bg-blue-600 text-white rounded-br-sm"
+                          : "bg-gray-100 text-gray-800 rounded-bl-sm"}`}
                     >
                       <p>{msg.content}</p>
                       <p className={`text-[10px] mt-1 ${isMine ? "text-blue-200" : "text-gray-400"}`}>
-                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </p>
                     </div>
                   </div>
@@ -302,7 +355,9 @@ export default function Chat() {
         <div className="flex-1 flex items-center justify-center flex-col gap-3 text-gray-400">
           <MessageCircle size={40} className="text-gray-200" />
           <p className="text-sm">Select a conversation or start a new one</p>
-          <p className="text-xs text-gray-300">Click the chat icon next to any user in Settings</p>
+          <p className="text-xs text-gray-300">
+            Click the chat icon next to any user in Settings
+          </p>
         </div>
       )}
     </div>

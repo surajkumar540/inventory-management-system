@@ -7,7 +7,8 @@ export const getMyConversations = async (req, res) => {
     const conversations = await prisma.conversation.findMany({
       where: {
         OR: [{ user1Id: myId }, { user2Id: myId }],
-        messages: { some: {} }, // only convs with at least 1 message
+        messages: { some: {} },
+        NOT: { deletedBy: { has: myId } }, // hide if I deleted it
       },
       include: {
         user1: { select: { id: true, name: true, role: true } },
@@ -45,6 +46,16 @@ export const getOrCreateConversation = async (req, res) => {
     if (!conversation) {
       conversation = await prisma.conversation.create({
         data: { user1Id, user2Id },
+        include: {
+          user1: { select: { id: true, name: true, role: true } },
+          user2: { select: { id: true, name: true, role: true } },
+        },
+      });
+    } else if (conversation.deletedBy.includes(myId)) {
+      // I had deleted it before — restore for me by removing my id from deletedBy
+      conversation = await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { deletedBy: { set: conversation.deletedBy.filter((id) => id !== myId) } },
         include: {
           user1: { select: { id: true, name: true, role: true } },
           user2: { select: { id: true, name: true, role: true } },
@@ -94,6 +105,7 @@ export const deleteConversation = async (req, res) => {
   try {
     const myId           = req.user.id;
     const conversationId = Number(req.params.conversationId);
+    const { deleteFor }  = req.query; // "me" or "everyone"
 
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
@@ -105,10 +117,21 @@ export const deleteConversation = async (req, res) => {
     if (conversation.user1Id !== myId && conversation.user2Id !== myId)
       return res.status(403).json({ success: false, message: "Access denied" });
 
-    await prisma.message.deleteMany({ where: { conversationId } });
-    await prisma.conversation.delete({ where: { id: conversationId } });
+    if (deleteFor === "everyone") {
+      // hard delete — remove messages + conversation for both
+      await prisma.message.deleteMany({ where: { conversationId } });
+      await prisma.conversation.delete({ where: { id: conversationId } });
+      return res.json({ success: true, message: "Conversation deleted for everyone" });
+    }
 
-    res.json({ success: true, message: "Conversation deleted" });
+    // delete for me only — add myId to deletedBy
+    const updatedDeletedBy = [...new Set([...conversation.deletedBy, myId])];
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { deletedBy: { set: updatedDeletedBy } },
+    });
+
+    res.json({ success: true, message: "Conversation deleted for you" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

@@ -70,7 +70,7 @@ export const login = async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, role: user.role, branchId: user.branchId }, JWT_SECRET, {
       expiresIn: "7d",
     });
 

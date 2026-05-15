@@ -15,15 +15,20 @@ export const getUsers = async (req, res) => {
     const { role, branchId } = req.query;
     const where = {};
 
-    if (req.user.role === "BRANCH_ADMIN") {
-      where.branchId = req.user.branchId;
-      where.role = "STAFF";
-    } else if (req.user.role === "ADMIN") {
-      where.role = { in: ["BRANCH_ADMIN", "STAFF"] };
-      if (branchId) where.branchId = Number(branchId);
-    } else if (req.user.role === "SUPER_ADMIN") {
+    if (req.user.role === "SUPER_ADMIN") {
+      // sees everyone
       if (role)     where.role     = role;
       if (branchId) where.branchId = Number(branchId);
+
+    } else if (req.user.role === "ADMIN") {
+      // sees BRANCH_ADMIN and STAFF only
+      where.role = { in: ["BRANCH_ADMIN", "STAFF"] };
+      if (branchId) where.branchId = Number(branchId);
+
+    } else if (req.user.role === "BRANCH_ADMIN") {
+      // sees only own branch STAFF
+      where.branchId = req.user.branchId;
+      where.role = "STAFF";
     }
 
     const users = await prisma.user.findMany({
@@ -35,6 +40,7 @@ export const getUsers = async (req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
+
     res.json({ success: true, data: users });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -45,7 +51,6 @@ export const createUser = async (req, res) => {
   try {
     const { name, email, password, role, branchId } = req.body;
 
-    // required validation
     if (!name?.trim())     return res.status(400).json({ success: false, message: "Name is required" });
     if (!email?.trim())    return res.status(400).json({ success: false, message: "Email is required" });
     if (!password?.trim()) return res.status(400).json({ success: false, message: "Password is required" });
@@ -94,9 +99,17 @@ export const updateUser = async (req, res) => {
     if (!target)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // can only edit users strictly below in hierarchy
-    if (HIERARCHY[target.role] >= HIERARCHY[req.user.role])
-      return res.status(403).json({ success: false, message: "Cannot edit this user" });
+    if (req.user.role === "SUPER_ADMIN") {
+      // can edit anyone except themselves via this check
+    } else if (req.user.role === "ADMIN") {
+      // can only edit BRANCH_ADMIN and STAFF
+      if (!["BRANCH_ADMIN", "STAFF"].includes(target.role))
+        return res.status(403).json({ success: false, message: "Cannot edit this user" });
+    } else if (req.user.role === "BRANCH_ADMIN") {
+      // can only edit STAFF in own branch
+      if (target.role !== "STAFF" || target.branchId !== req.user.branchId)
+        return res.status(403).json({ success: false, message: "Cannot edit this user" });
+    }
 
     const user = await prisma.user.update({
       where: { id: Number(id) },
@@ -127,9 +140,17 @@ export const deleteUser = async (req, res) => {
     if (!target)
       return res.status(404).json({ success: false, message: "User not found" });
 
-    // can only delete users strictly below in hierarchy
-    if (HIERARCHY[target.role] >= HIERARCHY[req.user.role])
-      return res.status(403).json({ success: false, message: "Cannot delete this user" });
+    if (req.user.role === "SUPER_ADMIN") {
+      // can delete anyone
+    } else if (req.user.role === "ADMIN") {
+      // can delete BRANCH_ADMIN and STAFF only
+      if (!["BRANCH_ADMIN", "STAFF"].includes(target.role))
+        return res.status(403).json({ success: false, message: "Cannot delete this user" });
+    } else if (req.user.role === "BRANCH_ADMIN") {
+      // can delete only own branch STAFF
+      if (target.role !== "STAFF" || target.branchId !== req.user.branchId)
+        return res.status(403).json({ success: false, message: "Cannot delete this user" });
+    }
 
     await prisma.user.delete({ where: { id: Number(id) } });
     await createAuditLog(req, "USER_DELETED", "User", id);

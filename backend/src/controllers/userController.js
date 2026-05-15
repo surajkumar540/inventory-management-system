@@ -16,19 +16,20 @@ export const getUsers = async (req, res) => {
     const where = {};
 
     if (req.user.role === "SUPER_ADMIN") {
-      // sees everyone
       if (role)     where.role     = role;
       if (branchId) where.branchId = Number(branchId);
 
     } else if (req.user.role === "ADMIN") {
-      // sees BRANCH_ADMIN and STAFF only
       where.role = { in: ["BRANCH_ADMIN", "STAFF"] };
       if (branchId) where.branchId = Number(branchId);
 
     } else if (req.user.role === "BRANCH_ADMIN") {
-      // sees only own branch STAFF
       where.branchId = req.user.branchId;
       where.role = "STAFF";
+
+    } else if (req.user.role === "STAFF") {
+      // only own branch members, all roles in that branch
+      where.branchId = req.user.branchId;
     }
 
     const users = await prisma.user.findMany({

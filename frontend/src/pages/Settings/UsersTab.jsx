@@ -5,29 +5,36 @@ import { getBranches } from "../../api/branches";
 import useAuthStore from "../../stores/useAuthStore";
 
 const ROLES_BY_CALLER = {
-  SUPER_ADMIN:  ["ADMIN", "BRANCH_ADMIN", "STAFF"],
-  ADMIN:        ["BRANCH_ADMIN", "STAFF"],
+  SUPER_ADMIN: ["ADMIN", "BRANCH_ADMIN", "STAFF"],
+  ADMIN: ["BRANCH_ADMIN", "STAFF"],
   BRANCH_ADMIN: ["STAFF"],
 };
 
-const EMPTY = { name: "", email: "", password: "", role: "STAFF", branchId: "" };
+const EMPTY = {
+  name: "",
+  email: "",
+  password: "",
+  role: "STAFF",
+  branchId: "",
+};
 
 const ROLE_COLORS = {
-  SUPER_ADMIN:  "bg-purple-100 text-purple-700",
-  ADMIN:        "bg-blue-100 text-blue-700",
+  SUPER_ADMIN: "bg-purple-100 text-purple-700",
+  ADMIN: "bg-blue-100 text-blue-700",
   BRANCH_ADMIN: "bg-amber-100 text-amber-700",
-  STAFF:        "bg-gray-100 text-gray-600",
+  STAFF: "bg-gray-100 text-gray-600",
 };
 
 export default function UsersTab() {
   const { user: me } = useAuthStore();
   const ROLES = ROLES_BY_CALLER[me?.role] || ["STAFF"];
+  const isReadOnly = me?.role === "STAFF";
 
   const qc = useQueryClient();
-  const [modal, setModal]     = useState(false);
-  const [form, setForm]       = useState(EMPTY);
+  const [modal, setModal] = useState(false);
+  const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null);
-  const [error, setError]     = useState("");
+  const [error, setError] = useState("");
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["users"],
@@ -48,8 +55,12 @@ export default function UsersTab() {
       }
       return createUser(payload);
     },
-    onSuccess: () => { qc.invalidateQueries(["users"]); closeModal(); },
-    onError: (err) => setError(err?.response?.data?.message || "Something went wrong"),
+    onSuccess: () => {
+      qc.invalidateQueries(["users"]);
+      closeModal();
+    },
+    onError: (err) =>
+      setError(err?.response?.data?.message || "Something went wrong"),
   });
 
   const remove = useMutation({
@@ -65,7 +76,13 @@ export default function UsersTab() {
   };
 
   const openEdit = (u) => {
-    setForm({ name: u.name, email: u.email, password: "", role: u.role, branchId: u.branch?.id || "" });
+    setForm({
+      name: u.name,
+      email: u.email,
+      password: "",
+      role: u.role,
+      branchId: u.branch?.id || "",
+    });
     setEditing(u.id);
     setError("");
     setModal(true);
@@ -80,10 +97,11 @@ export default function UsersTab() {
 
   const handleSave = () => {
     setError("");
-    if (!form.name.trim())               return setError("Name is required");
-    if (!editing && !form.email.trim())  return setError("Email is required");
-    if (!editing && !form.password.trim()) return setError("Password is required");
-    if (!form.role)                      return setError("Role is required");
+    if (!form.name.trim()) return setError("Name is required");
+    if (!editing && !form.email.trim()) return setError("Email is required");
+    if (!editing && !form.password.trim())
+      return setError("Password is required");
+    if (!form.role) return setError("Role is required");
     save.mutate();
   };
 
@@ -91,12 +109,14 @@ export default function UsersTab() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <p className="text-sm text-gray-500">{users?.length || 0} users</p>
-        <button
-          onClick={openCreate}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-        >
-          + Add User
-        </button>
+        {!isReadOnly && (
+          <button
+            onClick={openCreate}
+            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+          >
+            + Add User
+          </button>
+        )}
       </div>
 
       {isLoading ? (
@@ -115,34 +135,45 @@ export default function UsersTab() {
           </thead>
           <tbody>
             {users?.map((u) => (
-              <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50">
+              <tr
+                key={u.id}
+                className="border-b border-gray-50 hover:bg-gray-50"
+              >
                 <td className="py-3 font-medium text-gray-800">{u.name}</td>
                 <td className="py-3 text-gray-500">{u.email}</td>
                 <td className="py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[u.role] || ""}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_COLORS[u.role] || ""}`}
+                  >
                     {u.role}
                   </span>
                 </td>
                 <td className="py-3 text-gray-600">{u.branch?.name || "—"}</td>
                 <td className="py-3">
-                  <span className={`px-2 py-0.5 rounded-full text-xs ${u.isVerified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-xs ${u.isVerified ? "bg-green-100 text-green-700" : "bg-red-100 text-red-500"}`}
+                  >
                     {u.isVerified ? "Yes" : "No"}
                   </span>
                 </td>
                 <td className="py-3">
                   <div className="flex gap-2 justify-end">
+                  {!isReadOnly && (
                     <button
                       onClick={() => openEdit(u)}
                       className="text-blue-500 hover:underline text-xs"
                     >
                       Edit
                     </button>
+                  )}
+                  {!isReadOnly && (
                     <button
                       onClick={() => remove.mutate(u.id)}
                       className="text-red-500 hover:underline text-xs"
                     >
                       Delete
                     </button>
+                  )}
                   </div>
                 </td>
               </tr>
@@ -160,7 +191,9 @@ export default function UsersTab() {
 
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Name <span className="text-red-400">*</span></label>
+                <label className="text-xs text-gray-500 mb-1 block">
+                  Name <span className="text-red-400">*</span>
+                </label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -172,20 +205,28 @@ export default function UsersTab() {
               {!editing && (
                 <>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Email <span className="text-red-400">*</span></label>
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      Email <span className="text-red-400">*</span>
+                    </label>
                     <input
                       value={form.email}
-                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, email: e.target.value })
+                      }
                       placeholder="email@example.com"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Password <span className="text-red-400">*</span></label>
+                    <label className="text-xs text-gray-500 mb-1 block">
+                      Password <span className="text-red-400">*</span>
+                    </label>
                     <input
                       type="password"
                       value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, password: e.target.value })
+                      }
                       placeholder="Min 6 characters"
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
@@ -194,36 +235,46 @@ export default function UsersTab() {
               )}
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Role <span className="text-red-400">*</span></label>
+                <label className="text-xs text-gray-500 mb-1 block">
+                  Role <span className="text-red-400">*</span>
+                </label>
                 <select
                   value={form.role}
                   onChange={(e) => setForm({ ...form, role: e.target.value })}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                  {ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               {me?.role !== "BRANCH_ADMIN" && (
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Branch</label>
+                  <label className="text-xs text-gray-500 mb-1 block">
+                    Branch
+                  </label>
                   <select
                     value={form.branchId}
-                    onChange={(e) => setForm({ ...form, branchId: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, branchId: e.target.value })
+                    }
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">— No branch —</option>
                     {branches?.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name} ({b.city})</option>
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.city})
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
             </div>
 
-            {error && (
-              <p className="text-xs text-red-500 mt-3">{error}</p>
-            )}
+            {error && <p className="text-xs text-red-500 mt-3">{error}</p>}
 
             <div className="flex gap-2 justify-end mt-4">
               <button

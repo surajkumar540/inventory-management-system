@@ -55,7 +55,7 @@ const navItems = [
     label: "Settings",
     icon: Settings,
     to: "/settings",
-    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN"],
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_ADMIN","STAFF"],
   },
 ];
 

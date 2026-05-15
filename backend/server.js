@@ -1,9 +1,11 @@
-// server.js
 import "dotenv/config";
 import express from "express";
 import cors    from "cors";
 import morgan  from "morgan";
 import helmet  from "helmet";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import jwt from "jsonwebtoken";
 
 import authRoutes      from "./src/routes/authRoutes.js";
 import productRoutes   from "./src/routes/productRoutes.js";
@@ -15,10 +17,72 @@ import aiRoutes        from "./src/routes/aiRoutes.js";
 import auditRoutes     from "./src/routes/auditRoutes.js";
 import branchRoutes    from "./src/routes/branchRoutes.js";
 import userRoutes      from "./src/routes/userRoutes.js";
+import chatRoutes      from "./src/routes/chatRoutes.js";
+import prisma          from "./src/prisma/client.js";
 
 import { globalLimiter } from "./src/middleware/rateLimitMiddleware.js";
 
-const app = express();
+const JWT_SECRET = process.env.JWT_SECRET || "SECRET_KEY";
+const app        = express();
+const httpServer = createServer(app);
+
+const io = new Server(httpServer, {
+  cors: { origin: "*", methods: ["GET", "POST"] },
+});
+
+// online users map: userId -> socketId
+const onlineUsers = new Map();
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error("Unauthorized"));
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = decoded;
+    next();
+  } catch {
+    next(new Error("Unauthorized"));
+  }
+});
+
+io.on("connection", (socket) => {
+  const userId = socket.user.id;
+  onlineUsers.set(userId, socket.id);
+  io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+
+  socket.on("joinConversation", (conversationId) => {
+    socket.join(`conv_${conversationId}`);
+  });
+
+  socket.on("sendMessage", async ({ conversationId, content }) => {
+    try {
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
+      if (!conversation) return;
+      if (conversation.user1Id !== userId && conversation.user2Id !== userId) return;
+
+      const message = await prisma.message.create({
+        data: { conversationId, senderId: userId, content },
+        include: { sender: { select: { id: true, name: true } } },
+      });
+
+      await prisma.conversation.update({
+        where: { id: conversationId },
+        data: { updatedAt: new Date() },
+      });
+
+      io.to(`conv_${conversationId}`).emit("newMessage", message);
+    } catch (err) {
+      console.error("sendMessage error:", err.message);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    onlineUsers.delete(userId);
+    io.emit("onlineUsers", Array.from(onlineUsers.keys()));
+  });
+});
 
 app.use(express.json());
 app.use(cors());
@@ -37,6 +101,7 @@ app.use("/api/ai",        aiRoutes);
 app.use("/api/audit",     auditRoutes);
 app.use("/api/branches",  branchRoutes);
 app.use("/api/users",     userRoutes);
+app.use("/api/chat",      chatRoutes);
 
 app.get("/", (req, res) => res.send("Inventory API 🚀"));
 
@@ -46,4 +111,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+httpServer.listen(PORT, () => console.log(`Server running on port ${PORT}`));

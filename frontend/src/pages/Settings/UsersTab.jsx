@@ -45,10 +45,11 @@ export default function UsersTab() {
     queryFn: () => getUsers().then((r) => r.data.data),
   });
 
-  const { data: branches } = useQuery({
-    queryKey: ["branches"],
-    queryFn: () => getBranches().then((r) => r.data.data),
-  });
+ const { data: branches } = useQuery({
+  queryKey: ["branches"],
+  queryFn: () => getBranches().then((r) => r.data.data),
+  enabled: me?.role !== "STAFF",
+});
 
   const save = useMutation({
     mutationFn: () => {
@@ -162,13 +163,15 @@ export default function UsersTab() {
                 </td>
                 <td className="py-3">
                   <div className="flex gap-2 justify-end items-center">
-                    <button
-                      onClick={() => navigate(`/chat?userId=${u.id}`)}
-                      className="text-indigo-400 hover:text-indigo-600 transition-colors"
-                      title="Open chat"
-                    >
-                      <MessageCircle size={15} />
-                    </button>
+                    {u.id !== me?.id && (
+                      <button
+                        onClick={() => navigate(`/chat?userId=${u.id}`)}
+                        className="text-indigo-400 hover:text-indigo-600 transition-colors"
+                        title="Open chat"
+                      >
+                        <MessageCircle size={15} />
+                      </button>
+                    )}
                     {!isReadOnly && (
                       <>
                         <button

@@ -1,49 +1,48 @@
-// src/controllers/stockController.js
 import prisma from "../prisma/client.js";
-import { createAuditLog } from "../utils/auditLogger.js"; // ADD at top
+import { createAuditLog } from "../utils/auditLogger.js";
 
-// ========================
-// STOCK IN — goods received
-// ========================
+// scope helper — BRANCH_ADMIN and STAFF only see their branch products
+const getBranchProduct = async (productId, req) => {
+  const product = await prisma.product.findUnique({
+    where: { id: Number(productId) },
+  });
+  if (!product) return { error: "Product not found", status: 404 };
+
+  if (req.user.role !== "SUPER_ADMIN" && req.user.role !== "ADMIN") {
+    if (product.branchId !== req.user.branchId)
+      return { error: "Product not in your branch", status: 403 };
+  }
+
+  return { product };
+};
+
 export const stockIn = async (req, res) => {
   try {
     const { productId, quantity, reason } = req.body;
     const userId = req.user.id;
 
-    if (!productId || quantity <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "productId and quantity > 0 required",
-      });
-    }
+    if (!productId || Number(quantity) <= 0)
+      return res.status(400).json({ success: false, message: "productId and quantity > 0 required" });
 
-    const product = await prisma.product.findUnique({
-      where: { id: Number(productId) },
-    });
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    const { product, error, status } = await getBranchProduct(productId, req);
+    if (error) return res.status(status).json({ success: false, message: error });
 
     const [updated] = await prisma.$transaction([
       prisma.product.update({
         where: { id: Number(productId) },
-        data: { quantity: { increment: Number(quantity) } },
+        data:  { quantity: { increment: Number(quantity) } },
       }),
       prisma.stockLog.create({
         data: {
           productId: Number(productId),
-          change: Number(quantity),
-          reason: reason || "MANUAL_IN",
+          change:    Number(quantity),
+          reason:    reason || "MANUAL_IN",
           userId,
         },
       }),
     ]);
 
-    await createAuditLog(req, "STOCK_IN", "Stock", productId, {
-      quantity,
-      reason,
-    });
+    await createAuditLog(req, "STOCK_IN", "Stock", productId, { quantity, reason });
 
     res.json({ success: true, message: "Stock added", data: updated });
   } catch (err) {
@@ -51,55 +50,36 @@ export const stockIn = async (req, res) => {
   }
 };
 
-// ========================
-// STOCK OUT — goods dispatched
-// ========================
 export const stockOut = async (req, res) => {
   try {
     const { productId, quantity, reason } = req.body;
     const userId = req.user.id;
 
-    if (!productId || quantity <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "productId and quantity > 0 required",
-      });
-    }
+    if (!productId || Number(quantity) <= 0)
+      return res.status(400).json({ success: false, message: "productId and quantity > 0 required" });
 
-    const product = await prisma.product.findUnique({
-      where: { id: Number(productId) },
-    });
-    if (!product)
-      return res
-        .status(404)
-        .json({ success: false, message: "Product not found" });
+    const { product, error, status } = await getBranchProduct(productId, req);
+    if (error) return res.status(status).json({ success: false, message: error });
 
-    if (product.quantity < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: `Only ${product.quantity} units available`,
-      });
-    }
+    if (product.quantity < Number(quantity))
+      return res.status(400).json({ success: false, message: `Only ${product.quantity} units available` });
 
     const [updated] = await prisma.$transaction([
       prisma.product.update({
         where: { id: Number(productId) },
-        data: { quantity: { decrement: Number(quantity) } },
+        data:  { quantity: { decrement: Number(quantity) } },
       }),
       prisma.stockLog.create({
         data: {
           productId: Number(productId),
-          change: -Number(quantity),
-          reason: reason || "MANUAL_OUT",
+          change:    -Number(quantity),
+          reason:    reason || "MANUAL_OUT",
           userId,
         },
       }),
     ]);
 
-    await createAuditLog(req, "STOCK_OUT", "Stock", productId, {
-      quantity,
-      reason,
-    });
+    await createAuditLog(req, "STOCK_OUT", "Stock", productId, { quantity, reason });
 
     res.json({ success: true, message: "Stock removed", data: updated });
   } catch (err) {
@@ -107,16 +87,23 @@ export const stockOut = async (req, res) => {
   }
 };
 
-// ========================
-// GET STOCK LOGS
-// ========================
 export const getStockLogs = async (req, res) => {
   try {
     const { productId } = req.query;
+    const where = {};
+
+    // scope by branch — only show logs for products in their branch
+    if (req.user.role !== "SUPER_ADMIN" && req.user.role !== "ADMIN") {
+      where.product = { branchId: req.user.branchId };
+    }
+
+    if (productId) where.productId = Number(productId);
 
     const logs = await prisma.stockLog.findMany({
-      where: productId ? { productId: Number(productId) } : undefined,
-      include: { product: { select: { name: true, sku: true } } },
+      where,
+      include: {
+        product: { select: { name: true, sku: true, branchId: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 100,
     });

@@ -368,7 +368,7 @@ export default function UsersTab() {
                       <td className="py-3 pl-6 pr-4">
                         <div className="flex items-center gap-2.5">
                           <Avatar name={u.name} />
-                          <p className="text-[13px] font-bold text-slate-700 leading-tight">
+                          <p className="text-[13px] font-bold text-slate-700 leading-tight capitalize">
                             {u.name}
                             {u.id === me?.id && (
                               <span className="ml-1.5 text-[9px] font-bold text-violet-500 bg-violet-50 border border-violet-100 px-1.5 py-0.5 rounded-md uppercase tracking-wide">
@@ -415,7 +415,7 @@ export default function UsersTab() {
 
                       {/* Actions */}
                       <td className="py-3 px-4 pr-6 text-right">
-                        <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-1 transition-opacity">
                           {u.id !== me?.id && (
                             <button
                               onClick={() => navigate(`/chat?userId=${u.id}`)}

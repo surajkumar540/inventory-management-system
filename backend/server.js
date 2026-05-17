@@ -30,8 +30,8 @@ const io = new Server(httpServer, {
   cors: { origin: "*", methods: ["GET", "POST"] },
 });
 
-const onlineUsers = new Map(); // userId -> socketId
-const lastSeen    = new Map(); // userId -> ISO string
+const onlineUsers = new Map();
+const lastSeen    = new Map();
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
@@ -50,8 +50,6 @@ io.on("connection", (socket) => {
 
   onlineUsers.set(userId, socket.id);
   io.emit("onlineUsers", Array.from(onlineUsers.keys()));
-
-  // send current lastSeen map to newly connected user
   socket.emit("lastSeenMap", Object.fromEntries(lastSeen));
 
   socket.on("joinConversation", (conversationId) => {
@@ -67,7 +65,6 @@ io.on("connection", (socket) => {
       const conversation = await prisma.conversation.findUnique({
         where: { id: conversationId },
       });
-
       if (!conversation) return;
       if (conversation.user1Id !== userId && conversation.user2Id !== userId) return;
 
@@ -81,9 +78,63 @@ io.on("connection", (socket) => {
         data: { updatedAt: new Date() },
       });
 
+      const otherUserId   = conversation.user1Id === userId
+        ? conversation.user2Id
+        : conversation.user1Id;
+
+      const roomSockets   = await io.in(`conv_${conversationId}`).allSockets();
       io.to(`conv_${conversationId}`).emit("newMessage", message);
+
+      const otherSocketId = onlineUsers.get(otherUserId);
+      if (otherSocketId && !roomSockets.has(otherSocketId)) {
+        io.to(otherSocketId).emit("newMessage", message);
+      }
     } catch (err) {
       console.error("sendMessage error:", err.message);
+    }
+  });
+
+  socket.on("deleteMessages", async ({ conversationId, messageIds, deleteFor }) => {
+    try {
+      if (deleteFor !== "everyone") return;
+
+      const conversation = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+      });
+      if (!conversation) return;
+      if (conversation.user1Id !== userId && conversation.user2Id !== userId) return;
+
+      const otherUserId   = conversation.user1Id === userId
+        ? conversation.user2Id
+        : conversation.user1Id;
+
+      io.to(`conv_${conversationId}`).emit("messagesDeleted", {
+        messageIds,
+        deleteFor: "everyone",
+      });
+
+      const otherSocketId = onlineUsers.get(otherUserId);
+      if (otherSocketId) {
+        io.to(otherSocketId).emit("messagesDeleted", {
+          messageIds,
+          deleteFor: "everyone",
+        });
+      }
+    } catch (err) {
+      console.error("deleteMessages socket error:", err.message);
+    }
+  });
+
+  socket.on("conversationDeleted", async ({ conversationId, otherUserId }) => {
+    try {
+      io.to(`conv_${conversationId}`).emit("conversationDeleted", { conversationId });
+
+      const otherSocketId = onlineUsers.get(otherUserId);
+      if (otherSocketId) {
+        io.to(otherSocketId).emit("conversationDeleted", { conversationId });
+      }
+    } catch (err) {
+      console.error("conversationDeleted socket error:", err.message);
     }
   });
 

@@ -20,11 +20,13 @@ export const getMyConversations = async (req, res) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    // filter deleted conversations in JS
-    const filtered = conversations.filter((c) => {
-      if (c.deletedBy && c.deletedBy.includes(myId)) return false;
-      return true;
-    });
+    const filtered = conversations.map((c) => ({
+      ...c,
+      messages: c.messages.map((m) => ({
+        ...m,
+        content: m.deletedForAll ? "This message was deleted" : m.content,
+      })),
+    }));
 
     res.json({ success: true, data: filtered });
   } catch (err) {
@@ -59,15 +61,6 @@ export const getOrCreateConversation = async (req, res) => {
           user2: { select: { id: true, name: true, role: true } },
         },
       });
-    } else if (conversation.deletedBy.includes(myId)) {
-      conversation = await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { deletedBy: { set: conversation.deletedBy.filter((id) => id !== myId) } },
-        include: {
-          user1: { select: { id: true, name: true, role: true } },
-          user2: { select: { id: true, name: true, role: true } },
-        },
-      });
     }
 
     res.json({ success: true, data: conversation });
@@ -96,16 +89,14 @@ export const getMessages = async (req, res) => {
       data: { read: true },
     });
 
-    // fetch all messages, filter in JS to avoid schema issues
     const messages = await prisma.message.findMany({
       where: { conversationId },
       include: { sender: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     });
 
-    // filter out deleted messages in JS
+    // filter deleted-for-me in JS, keep deletedForAll visible
     const filtered = messages.filter((m) => {
-      if (m.deletedForAll) return false;
       if (m.deletedBy && m.deletedBy.includes(myId)) return false;
       return true;
     });
@@ -131,12 +122,9 @@ export const deleteConversation = async (req, res) => {
     if (conversation.user1Id !== myId && conversation.user2Id !== myId)
       return res.status(403).json({ success: false, message: "Access denied" });
 
-    // always delete for me only
-    const updatedDeletedBy = [...new Set([...conversation.deletedBy, myId])];
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: { deletedBy: { set: updatedDeletedBy } },
-    });
+    // hard delete — both users lose history
+    await prisma.message.deleteMany({ where: { conversationId } });
+    await prisma.conversation.delete({ where: { id: conversationId } });
 
     res.json({ success: true, message: "Conversation deleted" });
   } catch (err) {

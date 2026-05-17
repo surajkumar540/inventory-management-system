@@ -6,8 +6,8 @@ import {
 } from "../../api/chat";
 import useAuthStore from "../../stores/useAuthStore";
 import socket       from "../../socket";
-import { MessageCircle, Send, Trash2, X, Check, ChevronDown } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { MessageCircle, Send, X, Check, ChevronDown } from "lucide-react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 const ROLE_COLORS = {
   SUPER_ADMIN:  "text-purple-500",
@@ -30,6 +30,7 @@ function formatLastSeen(iso) {
 export default function Chat() {
   const { user: me, token }             = useAuthStore();
   const qc                              = useQueryClient();
+  const navigate                        = useNavigate();
   const [activeConv, setActiveConv]     = useState(null);
   const [messages, setMessages]         = useState([]);
   const [text, setText]                 = useState("");
@@ -38,28 +39,40 @@ export default function Chat() {
   const [lastSeenMap, setLastSeenMap]   = useState({});
   const [selected, setSelected]         = useState([]);
   const [msgMenuId, setMsgMenuId]       = useState(null);
+  const [convMenuId, setConvMenuId]     = useState(null);
   const [searchParams]                  = useSearchParams();
   const bottomRef                       = useRef(null);
   const autoOpenDone                    = useRef(false);
   const typingTimeout                   = useRef(null);
+  const activeConvRef                   = useRef(null);
 
-  // ── socket setup ──
+  // keep ref in sync with state
+  useEffect(() => {
+    activeConvRef.current = activeConv;
+  }, [activeConv]);
+
+  // socket setup
   useEffect(() => {
     socket.auth = { token };
     socket.connect();
 
-    socket.on("onlineUsers",  (users) => setOnlineUsers(users));
-    socket.on("newMessage",   (msg)   => {
+    socket.on("onlineUsers", (users) => setOnlineUsers(users));
+
+    socket.on("newMessage", (msg) => {
       setMessages((p) => [...p, msg]);
       qc.invalidateQueries(["conversations"]);
     });
-    socket.on("typing",       ({ userId, isTyping }) =>
+
+    socket.on("typing", ({ userId, isTyping }) =>
       setTypingUsers((p) => ({ ...p, [userId]: isTyping }))
     );
-    socket.on("lastSeen",     ({ userId, time }) =>
+
+    socket.on("lastSeen", ({ userId, time }) =>
       setLastSeenMap((p) => ({ ...p, [userId]: time }))
     );
-    socket.on("lastSeenMap",  (map) => setLastSeenMap(map));
+
+    socket.on("lastSeenMap", (map) => setLastSeenMap(map));
+
     socket.on("messagesDeleted", ({ messageIds, deleteFor }) => {
       if (deleteFor === "everyone") {
         setMessages((prev) =>
@@ -70,6 +83,15 @@ export default function Chat() {
       }
     });
 
+    socket.on("conversationDeleted", ({ conversationId }) => {
+      if (activeConvRef.current?.id === conversationId) {
+        setActiveConv(null);
+        setMessages([]);
+        navigate("/chat", { replace: true });
+      }
+      qc.invalidateQueries(["conversations"]);
+    });
+
     return () => {
       socket.off("onlineUsers");
       socket.off("newMessage");
@@ -77,28 +99,32 @@ export default function Chat() {
       socket.off("lastSeen");
       socket.off("lastSeenMap");
       socket.off("messagesDeleted");
+      socket.off("conversationDeleted");
       socket.disconnect();
     };
   }, []);
 
-  // ── scroll to bottom ──
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ── close msg dropdown on outside click ──
   useEffect(() => {
     const handler = () => setMsgMenuId(null);
     if (msgMenuId) document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, [msgMenuId]);
 
+  useEffect(() => {
+    const handler = () => setConvMenuId(null);
+    if (convMenuId) document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, [convMenuId]);
+
   const { data: conversations, isLoading } = useQuery({
     queryKey: ["conversations"],
     queryFn:  () => getMyConversations().then((r) => r.data.data),
   });
 
-  // ── auto-open from ?userId= ──
   useEffect(() => {
     if (autoOpenDone.current) return;
     const userId = searchParams.get("userId");
@@ -115,9 +141,11 @@ export default function Chat() {
       setActiveConv(conv);
       setSelected([]);
       setMsgMenuId(null);
+      setConvMenuId(null);
       socket.emit("joinConversation", conv.id);
       const msgs = await getMessages(conv.id);
       setMessages(msgs.data.data);
+      navigate(`/chat?userId=${userId}`, { replace: true });
     } catch (err) { console.error(err); }
   };
 
@@ -140,10 +168,20 @@ export default function Chat() {
 
   const deleteConvMutation = useMutation({
     mutationFn: (id) => deleteConversation(id),
-    onSuccess:  () => {
+    onSuccess: (_, id) => {
+      const conv = conversations?.find((c) => c.id === id);
+      if (conv) {
+        const otherUser = getOtherUser(conv);
+        socket.emit("conversationDeleted", {
+          conversationId: id,
+          otherUserId: otherUser.id,
+        });
+      }
       qc.invalidateQueries(["conversations"]);
       setActiveConv(null);
       setMessages([]);
+      navigate("/chat", { replace: true });
+      autoOpenDone.current = false;
     },
   });
 
@@ -229,26 +267,65 @@ export default function Chat() {
             return (
               <div
                 key={conv.id}
-                onClick={() => openConversation(other.id)}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors
+                className={`relative flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors group
                   ${isActive ? "bg-blue-50" : "hover:bg-gray-50"}`}
               >
-                <div className="relative shrink-0">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
-                    {other.name?.charAt(0).toUpperCase()}
+                <div
+                  className="flex items-center gap-3 flex-1 min-w-0"
+                  onClick={() => openConversation(other.id)}
+                >
+                  <div className="relative shrink-0">
+                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-xs font-bold">
+                      {other.name?.charAt(0).toUpperCase()}
+                    </div>
+                    {isOnline && (
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white" />
+                    )}
                   </div>
-                  {isOnline && (
-                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white" />
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 truncate">{other.name}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {isTyping
+                        ? <span className="text-emerald-500 italic">typing...</span>
+                        : lastMessage(conv)
+                      }
+                    </p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{other.name}</p>
-                  <p className="text-xs text-gray-400 truncate">
-                    {isTyping
-                      ? <span className="text-emerald-500 italic">typing...</span>
-                      : lastMessage(conv)
-                    }
-                  </p>
+
+                <div
+                  className="relative shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setConvMenuId((prev) => prev === conv.id ? null : conv.id);
+                    }}
+                    className="w-6 h-6 rounded-full flex items-center justify-center
+                      text-gray-400 opacity-0 group-hover:opacity-100
+                      hover:bg-gray-200 hover:text-gray-600 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <circle cx="12" cy="5" r="2"/>
+                      <circle cx="12" cy="12" r="2"/>
+                      <circle cx="12" cy="19" r="2"/>
+                    </svg>
+                  </button>
+
+                  {convMenuId === conv.id && (
+                    <div className="absolute right-0 top-7 z-30 bg-white border border-gray-100 rounded-xl shadow-lg w-44 overflow-hidden">
+                      <button
+                        onClick={() => {
+                          deleteConvMutation.mutate(conv.id);
+                          setConvMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        Delete conversation
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -321,13 +398,6 @@ export default function Chat() {
                       )}
                     </p>
                   </div>
-                  <button
-                    onClick={() => deleteConvMutation.mutate(activeConv.id)}
-                    className="p-2 text-gray-300 hover:text-red-400 transition-colors rounded-lg hover:bg-red-50"
-                    title="Delete conversation"
-                  >
-                    <Trash2 size={15} />
-                  </button>
                 </>
               );
             })()}

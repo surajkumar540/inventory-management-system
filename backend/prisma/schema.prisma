@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  BRANCH_ADMIN
+  STAFF
+}
+
+model Branch {
+  id        Int       @id @default(autoincrement())
+  name      String
+  city      String
+  address   String?
+  createdAt DateTime  @default(now())
+
+  users    User[]
+  products Product[]
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  name       String
+  email      String    @unique
+  password   String
+  role       Role      @default(STAFF)
+  branchId   Int?
+  isVerified Boolean   @default(false)
+  otp        String?
+  otpExpiry  DateTime?
+  createdAt  DateTime  @default(now())
+
+  branch           Branch?           @relation(fields: [branchId], references: [id])
+  orders           Order[]
+  sentMessages     Message[]         @relation("SentMessages")
+  conversationsAs1 Conversation[]    @relation("ConversationUser1")
+  conversationsAs2 Conversation[]    @relation("ConversationUser2")
+}
+
+model Conversation {
+  id        Int       @id @default(autoincrement())
+  user1Id   Int
+  user2Id   Int
+  deletedBy Int[]     // stores userIds who deleted it for themselves
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user1    User      @relation("ConversationUser1", fields: [user1Id], references: [id])
+  user2    User      @relation("ConversationUser2", fields: [user2Id], references: [id])
+  messages Message[]
+
+  @@unique([user1Id, user2Id])
+}
+
+model Message {
+  id             Int          @id @default(autoincrement())
+  conversationId Int
+  senderId       Int
+  content        String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+
+  products Product[]
+}
+
+model Product {
+  id         Int       @id @default(autoincrement())
+  name       String
+  sku        String    @unique
+  price      Float
+  quantity   Int       @default(0)
+  threshold  Int       @default(10)
+  image      String?
+  categoryId Int?
+  branchId   Int?
+  createdAt  DateTime  @default(now())
+
+  branch     Branch?    @relation(fields: [branchId], references: [id])
+  category   Category?  @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+  stockLogs  StockLog[]
+}
+
+model Order {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  status    String    @default("PENDING")
+  createdAt DateTime  @default(now())
+
+  user  User        @relation(fields: [userId], references: [id])
+  items OrderItem[]
+}
+
+model OrderItem {
+  id        Int   @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  quantity  Int
+  price     Float
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model StockLog {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  change    Int
+  reason    String   @default("ORDER")
+  userId    Int?
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  userEmail String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+}
